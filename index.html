@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Ciclista com Gravação de Trajeto</title>
+    <title>GPS Motociclista & Rastreio</title>
 
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
 
@@ -17,7 +18,7 @@
         }
         #header {
             padding: 10px;
-            background-color: #27ae60;
+            background-color: #2c3e50;
             color: white;
             text-align: center;
         }
@@ -32,7 +33,7 @@
             border-bottom: 1px solid #dcdde1;
         }
         button {
-            background-color: #27ae60;
+            background-color: #34495e;
             color: white;
             border: none;
             padding: 8px 12px;
@@ -42,7 +43,7 @@
             font-weight: bold;
         }
         button:hover {
-            background-color: #219653;
+            background-color: #2c3e50;
         }
         #btn-voz {
             background-color: #e67e22;
@@ -79,7 +80,7 @@
             height: calc(100vh - 170px);
             touch-action: none; 
         }
-        .bike-icon {
+        .moto-icon {
             font-size: 24px;
             text-align: center;
             line-height: 24px;
@@ -89,20 +90,22 @@
 <body>
 
     <div id="header">
-        <h2>🚲 GPS Ciclista & Rastreio</h2>
+        <h2>🏍️ GPS Motociclista & Rastreio</h2>
     </div>
 
     <div id="controls">
         <button id="btn-localizacao">📍 Local</button>
         <button id="btn-voz">🎤 Destino</button>
-        <button id="btn-gravar">🔴 Gravar Pedal</button>
+        <button id="btn-gravar">🔴 Gravar Rota</button>
         <button id="btn-marcar">⭐ Marcar Ponto</button>
     </div>
     
-    <div id="instructions">Toque em "Gravar Pedal" para iniciar o registro por onde passar.</div>
+    <div id="instructions">Toque em "Gravar Rota" ou "Local" para iniciar.</div>
     <div id="map"></div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Rotate JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
     <script>
@@ -143,10 +146,10 @@
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
 
-        function criarIconeBike() {
+        function criarIconeMoto() {
             return L.divIcon({
-                className: 'bike-icon',
-                html: '🚲',
+                className: 'moto-icon',
+                html: '🏍️',
                 iconSize: [30, 30],
                 iconAnchor: [15, 15]
             });
@@ -162,7 +165,8 @@
         }
 
         function calcularRota() {
-            const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=bicycle&apiKey=${apiKey}`;
+            // Alterado o modo para 'drive' (carro/moto) para vias de trânsito compatíveis
+            const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=drive&apiKey=${apiKey}`;
 
             fetch(routingUrl)
                 .then(response => response.json())
@@ -171,16 +175,16 @@
                         if (routeLayer) map.removeLayer(routeLayer);
 
                         routeLayer = L.geoJSON(result, {
-                            style: { color: "#2980b9", weight: 6, opacity: 0.8 }
+                            style: { color: "#e67e22", weight: 6, opacity: 0.8 }
                         }).addTo(map);
 
                         const bounds = routeLayer.getBounds();
                         map.fitBounds(bounds, { padding: [50, 50] });
 
-                        instructionsDiv.innerHTML = "Rota traçada! Bom pedal! 🚲";
+                        instructionsDiv.innerHTML = "Rota traçada para moto! Boa viagem! 🏍️";
                         falarTexto("Rota calculada com sucesso.");
                     } else {
-                        alert("Não foi possível encontrar uma rota de bicicleta.");
+                        alert("Não foi possível encontrar uma rota para este destino.");
                     }
                 })
                 .catch(error => console.log('Erro ao buscar a rota:', error));
@@ -189,7 +193,6 @@
         // Controle de Gravação do Trajeto
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
-                // Iniciar Gravação
                 if (!navigator.geolocation) {
                     alert("Geolocalização não suportada.");
                     return;
@@ -200,8 +203,8 @@
                 isGravando = true;
                 btnGravar.textContent = "⏹️ Parar Gravação";
                 btnGravar.classList.add('gravando');
-                instructionsDiv.innerHTML = "🔴 Gravando trajeto em tempo real...";
-                falarTexto("Gravação de trajeto iniciada.");
+                instructionsDiv.innerHTML = "🔴 Gravando trajeto da moto...";
+                falarTexto("Gravação de rota iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -217,46 +220,46 @@
                         map.setView(novaCoord, 16);
 
                         if (markerOrigem) map.removeLayer(markerOrigem);
-                        markerOrigem = L.marker(novaCoord, { icon: criarIconeBike() }).addTo(map);
+                        markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
 
-                        // Desenhar/Atualizar a linha percorrida
                         if (trackLayer) map.removeLayer(trackLayer);
-                        trackLayer = L.polyline(coordsGravadas, { color: '#e74c3c', weight: 5 }).addTo(map);
+                        trackLayer = L.polyline(coordsGravadas, { color: '#c0392b', weight: 5 }).addTo(map);
                     },
-                    (error) => { console.error("Erro no GPS:", error); },
+                    (error) => {
+                        console.error("Erro no GPS:", error);
+                        alert("Erro ao rastrear via GPS. Verifique se o GPS está ativado.");
+                    },
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
                 );
 
             } else {
-                // Parar Gravação
                 isGravando = false;
                 navigator.geolocation.clearWatch(watchId);
-                btnGravar.textContent = "🔴 Gravar Pedal";
+                btnGravar.textContent = "🔴 Gravar Rota";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ Gravação encerrada. Dados salvos!";
                 falarTexto("Gravação encerrada com sucesso.");
 
-                // Gerar arquivo para download com o trajeto e os pontos de melhoria
-                const dadosPedal = {
+                const dadosRota = {
                     data: new Date().toISOString(),
                     trajeto: coordsGravadas,
                     pontosMelhoria: pontosDeMelhoria
                 };
 
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosPedal));
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosRota));
                 const downloadAnchor = document.createElement('a');
                 downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", `pedal_${new Date().toISOString().slice(0,10)}.json`);
+                downloadAnchor.setAttribute("download", `moto_rota_${new Date().toISOString().slice(0,10)}.json`);
                 document.body.appendChild(downloadAnchor);
                 downloadAnchor.click();
                 downloadAnchor.remove();
             }
         });
 
-        // Marcar Ponto onde é Bom ou Precisa de Melhoria
+        // Marcar Ponto de Atenção ou Referência
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) {
-                alert("Inicie a gravação do pedal primeiro para marcar os pontos por onde passa!");
+                alert("Inicie a gravação da rota primeiro para marcar os pontos por onde passa!");
                 return;
             }
 
@@ -266,7 +269,7 @@
             }
 
             const ultimaPos = coordsGravadas[coordsGravadas.length - 1];
-            const nota = prompt("Como avalia este local? (Ex: 'Ótima ciclovia', 'Falta sinalização', 'Buraco perigoso'):", "Bom trecho / Ponto de atenção");
+            const nota = prompt("Adicionar nota neste local (Ex: 'Trânsito intenso', 'Radar', 'Ótimo asfalto', 'Curva perigosa'):", "Ponto de atenção");
 
             if (nota !== null) {
                 const pontoInfo = {
@@ -277,11 +280,11 @@
                 pontosDeMelhoria.push(pontoInfo);
 
                 const marcador = L.marker(ultimaPos).addTo(map)
-                    .bindPopup(`<b>⚠️ Ponto Marcado:</b><br>${nota}`)
+                    .bindPopup(`<b>⭐ Ponto Registrado:</b><br>${nota}`)
                     .openPopup();
 
                 marcadoresMelhoriaLayers.push(marcador);
-                falarTexto("Ponto marcado com sucesso.");
+                falarTexto("Ponto marcado.");
             }
         });
 
@@ -297,9 +300,11 @@
                 origem = [lat, lon];
                 map.setView(origem, 15);
                 if (markerOrigem) map.removeLayer(markerOrigem);
-                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Você está aqui</b>").openPopup();
+                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Você está aqui</b>").openPopup();
                 instructionsDiv.innerHTML = "Localização obtida!";
-            }, () => { alert("Erro ao obter localização."); }, { enableHighAccuracy: true });
+            }, (error) => {
+                alert("Erro ao obter localização. Verifique as permissões de GPS do navegador.");
+            }, { enableHighAccuracy: true });
         });
 
         btnVoz.addEventListener('click', function() {
@@ -338,12 +343,12 @@
         });
 
         map.on('click', function(e) {
-            if (isGravando) return; // Bloqueia cliques manuais se estiver gravando em tempo real
+            if (isGravando) return;
             const latLng = [e.latlng.lat, e.latlng.lng];
             if (!origem) {
                 origem = latLng;
                 if (markerOrigem) map.removeLayer(markerOrigem);
-                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Origem</b>").openPopup();
+                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Origem</b>").openPopup();
                 instructionsDiv.innerHTML = "Origem definida! Defina o destino.";
             } else if (!destino) {
                 destino = latLng;
@@ -356,7 +361,7 @@
                 if (routeLayer) map.removeLayer(routeLayer);
                 origem = latLng;
                 destino = null;
-                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Nova Origem</b>").openPopup();
+                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Nova Origem</b>").openPopup();
                 instructionsDiv.innerHTML = "Nova origem definida.";
             }
         });
