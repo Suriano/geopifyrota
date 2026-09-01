@@ -100,7 +100,7 @@
         <button id="btn-marcar">⭐ Marcar Ponto</button>
     </div>
     
-    <div id="instructions">Toque em "Gravar Rota" para iniciar o rastreio na moto.</div>
+    <div id="instructions">Clique no mapa ou toque em "Local" para ver o nome da rua.</div>
     <div id="map"></div>
 
     <!-- Leaflet JS -->
@@ -132,14 +132,13 @@
         let markerDestino = null;
         let routeLayer = null;
 
-        // Variáveis de Gravação e Ruas
         let isGravando = false;
         let watchId = null;
         let coordsGravadas = [];
         let pontosDeMelhoria = [];
         let trackLayer = null;
         let marcadoresMelhoriaLayers = [];
-        let ruaAtualNome = "Aguardando sinal...";
+        let ruaAtualNome = "Aguardando...";
         let ultimaChamadaRua = 0;
 
         const instructionsDiv = document.getElementById('instructions');
@@ -166,30 +165,26 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Função para descobrir o nome da rua pelas coordenadas (Geocodificação Reversa)
-        function atualizarNomeDaRua(lat, lon) {
-            const agora = Date.now();
-            // Limita a consulta a cada 6 segundos para não estourar o limite da API
-            if (agora - ultimaChamadaRua < 6000) return;
-            ultimaChamadaRua = agora;
-
+        // Função para buscar o nome da rua por coordenadas (Geocodificação Reversa)
+        function obterNomeRuaPorCoord(lat, lon, callback) {
             const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&apiKey=${apiKey}&lang=pt`;
 
             fetch(url)
                 .then(res => res.json())
                 .then(result => {
+                    let nomeFormatado = "Rua não identificada";
                     if (result.features && result.features.length > 0) {
                         const props = result.features[0].properties;
-                        const rua = props.street || props.name || "Via sem nome";
+                        const rua = props.street || props.name || props.formatted || "Via sem nome";
                         const bairro = props.suburb || props.city || "";
-                        ruaAtualNome = bairro ? `${rua} (${bairro})` : rua;
-                        
-                        if (isGravando) {
-                            instructionsDiv.innerHTML = `🏍️ <b>Rua atual:</b> ${ruaAtualNome}`;
-                        }
+                        nomeFormatado = bairro ? `${rua} (${bairro})` : rua;
                     }
+                    if (callback) callback(nomeFormatado);
                 })
-                .catch(err => console.log("Erro ao buscar nome da rua:", err));
+                .catch(err => {
+                    console.log("Erro ao buscar rua:", err);
+                    if (callback) callback("Erro ao carregar nome da rua");
+                });
         }
 
         function calcularRota() {
@@ -217,7 +212,7 @@
                 .catch(error => console.log('Erro ao buscar rota:', error));
         }
 
-        // Controle de Gravação com Identificação de Ruas
+        // Gravação em tempo real
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
                 if (!navigator.geolocation) {
@@ -230,7 +225,7 @@
                 isGravando = true;
                 btnGravar.textContent = "⏹️ Parar Gravação";
                 btnGravar.classList.add('gravando');
-                instructionsDiv.innerHTML = "🔴 Iniciando rastreio e buscando ruas...";
+                instructionsDiv.innerHTML = "🔴 Iniciando rastreio...";
                 falarTexto("Gravação de rota iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -252,12 +247,18 @@
                         if (trackLayer) map.removeLayer(trackLayer);
                         trackLayer = L.polyline(coordsGravadas, { color: '#c0392b', weight: 5 }).addTo(map);
 
-                        // Atualiza o nome da rua em tempo real
-                        atualizarNomeDaRua(lat, lon);
+                        const agora = Date.now();
+                        if (agora - ultimaChamadaRua > 6000) {
+                            ultimaChamadaRua = agora;
+                            obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
+                                ruaAtualNome = nomeRua;
+                                if (isGravando) {
+                                    instructionsDiv.innerHTML = `🏍️ <b>Rua atual:</b> ${ruaAtualNome}`;
+                                }
+                            });
+                        }
                     },
-                    (error) => {
-                        console.error("Erro no GPS:", error);
-                    },
+                    (error) => { console.error("Erro GPS:", error); },
                     { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
                 );
 
@@ -266,8 +267,8 @@
                 navigator.geolocation.clearWatch(watchId);
                 btnGravar.textContent = "🔴 Gravar Rota";
                 btnGravar.classList.remove('gravando');
-                instructionsDiv.innerHTML = "✅ Gravação encerrada. Arquivo gerado!";
-                falarTexto("Gravação encerrada com sucesso.");
+                instructionsDiv.innerHTML = "✅ Gravação encerrada e arquivo gerado!";
+                falarTexto("Gravação encerrada.");
 
                 const dadosRota = {
                     data: new Date().toISOString(),
@@ -285,20 +286,18 @@
             }
         });
 
-        // Marcar Ponto salvando também a rua atual
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) {
                 alert("Inicie a gravação da rota primeiro!");
                 return;
             }
-
             if (coordsGravadas.length === 0) {
                 alert("Aguardando sinal de GPS.");
                 return;
             }
 
             const ultimaPos = coordsGravadas[coordsGravadas.length - 1];
-            const nota = prompt(`Localizado em: ${ruaAtualNome}\n\nAdicionar nota (Ex: 'Radar', 'Trânsito', 'Ótimo asfalto'):`, "Ponto de atenção");
+            const nota = prompt(`Localizado em: ${ruaAtualNome}\n\nAdicionar nota (Ex: 'Radar', 'Trânsito'):`, "Ponto de atenção");
 
             if (nota !== null) {
                 const pontoInfo = {
@@ -326,17 +325,22 @@
                 const lon = position.coords.longitude;
                 origem = [lat, lon];
                 map.setView(origem, 15);
-                if (markerOrigem) map.removeLayer(markerOrigem);
-                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Você está aqui</b>").openPopup();
-                atualizarNomeDaRua(lat, lon);
-                instructionsDiv.innerHTML = `📍 Localizado: ${ruaAtualNome}`;
+
+                obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
+                    ruaAtualNome = nomeRua;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
+                        .bindPopup(`<b>Você está aqui</b><br>${ruaAtualNome}`)
+                        .openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>${ruaAtualNome}</b>`;
+                });
             }, () => { alert("Erro ao obter localização."); }, { enableHighAccuracy: true });
         });
 
         btnVoz.addEventListener('click', function() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
-                alert("Reconhecimento de voz não suportado neste navegador.");
+                alert("Reconhecimento de voz não suportado.");
                 return;
             }
             const recognition = new SpeechRecognition();
@@ -368,28 +372,45 @@
             };
         });
 
+        // Clique manual no mapa descobre o nome da rua imediatamente
         map.on('click', function(e) {
             if (isGravando) return;
-            const latLng = [e.latlng.lat, e.latlng.lng];
-            if (!origem) {
-                origem = latLng;
-                if (markerOrigem) map.removeLayer(markerOrigem);
-                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Origem</b>").openPopup();
-                instructionsDiv.innerHTML = "Origem definida! Defina o destino.";
-            } else if (!destino) {
-                destino = latLng;
-                if (markerDestino) map.removeLayer(markerDestino);
-                markerDestino = L.marker(destino).addTo(map).bindPopup("<b>Destino</b>").openPopup();
-                calcularRota();
-            } else {
-                if (markerOrigem) map.removeLayer(markerOrigem);
-                if (markerDestino) map.removeLayer(markerDestino);
-                if (routeLayer) map.removeLayer(routeLayer);
-                origem = latLng;
-                destino = null;
-                markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map).bindPopup("<b>Nova Origem</b>").openPopup();
-                instructionsDiv.innerHTML = "Nova origem definida.";
-            }
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            const latLng = [lat, lon];
+
+            instructionsDiv.innerHTML = "Buscando nome da rua...";
+
+            obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
+                ruaAtualNome = nomeRua;
+
+                if (!origem) {
+                    origem = latLng;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
+                        .bindPopup(`<b>Origem:</b><br>${ruaAtualNome}`)
+                        .openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>Origem:</b> ${ruaAtualNome}`;
+                } else if (!destino) {
+                    destino = latLng;
+                    if (markerDestino) map.removeLayer(markerDestino);
+                    markerDestino = L.marker(destino).addTo(map)
+                        .bindPopup(`<b>Destino:</b><br>${ruaAtualNome}`)
+                        .openPopup();
+                    instructionsDiv.innerHTML = `🏁 Calculando rota para: ${ruaAtualNome}`;
+                    calcularRota();
+                } else {
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    if (markerDestino) map.removeLayer(markerDestino);
+                    if (routeLayer) map.removeLayer(routeLayer);
+                    origem = latLng;
+                    destino = null;
+                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
+                        .bindPopup(`<b>Nova Origem:</b><br>${ruaAtualNome}`)
+                        .openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>Nova Origem:</b> ${ruaAtualNome}`;
+                }
+            });
         });
     </script>
 </body>
