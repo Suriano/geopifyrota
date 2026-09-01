@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GPS Ciclista em Tempo Real</title>
+    <title>GPS Ciclista com Voz Humana</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -14,7 +14,7 @@
             font-family: Arial, sans-serif;
         }
         #header {
-            padding: 15px;
+            padding: 12px;
             background-color: #27ae60;
             color: white;
             text-align: center;
@@ -23,6 +23,10 @@
             padding: 10px;
             background-color: #f1f2f6;
             text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
             border-bottom: 1px solid #dcdde1;
         }
         button {
@@ -38,6 +42,12 @@
         button:hover {
             background-color: #219653;
         }
+        #btn-voz {
+            background-color: #e67e22;
+        }
+        #btn-voz:hover {
+            background-color: #d35400;
+        }
         #instructions {
             padding: 10px;
             text-align: center;
@@ -48,7 +58,7 @@
         }
         #map {
             width: 100%;
-            height: calc(100vh - 150px);
+            height: calc(100vh - 160px);
         }
         .bike-icon {
             font-size: 24px;
@@ -60,14 +70,15 @@
 <body>
 
     <div id="header">
-        <h2>🚲 GPS Ciclista em Tempo Real</h2>
+        <h2>🚲 GPS Ciclista (Voz Natural)</h2>
     </div>
 
     <div id="controls">
-        <button id="btn-localizacao">📍 Usar Minha Localização Atual como Partida</button>
+        <button id="btn-localizacao">📍 Minha Localização</button>
+        <button id="btn-voz">🎤 Falar Destino</button>
     </div>
     
-    <div id="instructions">Clique no botão acima ou clique no mapa para definir a Origem.</div>
+    <div id="instructions">Clique em "Minha Localização" ou toque no mapa para começar.</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -75,11 +86,10 @@
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // Inicializa o mapa centrado em São Paulo (provisório até pegar a localização)
         const map = L.map('map').setView([-23.5505, -46.6333], 13);
 
         L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
-            attribution: 'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | © OpenStreetMap contributors',
+            attribution: 'Powered by Geoapify | © OpenStreetMap contributors',
             maxZoom: 20,
             id: 'osm-carto'
         }).addTo(map);
@@ -92,6 +102,7 @@
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
+        const btnVoz = document.getElementById('btn-voz');
 
         function criarIconeBike() {
             return L.divIcon({
@@ -102,7 +113,37 @@
             });
         }
 
-        // Função para calcular e desenhar a rota
+        // Função avançada para buscar a melhor voz (mais humana/neural) disponível no aparelho
+        function falarTexto(texto) {
+            if (!('speechSynthesis' in window)) return;
+
+            window.speechSynthesis.cancel(); // Para falas anteriores acumuladas
+
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1.05; // Levemente mais fluido
+            utterance.pitch = 1.0;
+
+            const voices = window.speechSynthesis.getVoices();
+            
+            // Tenta priorizar vozes do Google (geralmente mais naturais no Android/Chrome) ou vozes marcadas como naturais/online
+            const melhorVoz = voices.find(v => v.lang === 'pt-BR' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural'))) ||
+                              voices.find(v => v.lang === 'pt-BR' || v.lang === 'pt_BR');
+
+            if (melhorVoz) {
+                utterance.voice = melhorVoz;
+            }
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // Garante o carregamento das vozes assíncronas no navegador
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => {
+                window.speechSynthesis.getVoices();
+            };
+        }
+
         function calcularRota() {
             const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=bicycle&apiKey=${apiKey}`;
 
@@ -120,21 +161,23 @@
                         map.fitBounds(bounds, { padding: [50, 50] });
 
                         instructionsDiv.innerHTML = "Rota traçada com sucesso! Bom pedal! 🚲🏁";
+                        falarTexto("Rota calculada com sucesso. Bom pedal!");
                     } else {
-                        alert("Não foi possível encontrar uma rota de bicicleta entre os pontos.");
+                        alert("Não foi possível encontrar uma rota de bicicleta.");
+                        falarTexto("Não foi possível encontrar uma rota.");
                     }
                 })
                 .catch(error => console.log('Erro ao buscar a rota:', error));
         }
 
-        // Botão para pegar a localização em tempo real via navegador (GPS)
         btnLocalizacao.addEventListener('click', function() {
             if (!navigator.geolocation) {
-                alert("Seu navegador não suporta geolocalização.");
+                alert("Geolocalização não suportada.");
                 return;
             }
 
             instructionsDiv.innerHTML = "Obtendo sua localização atual...";
+            falarTexto("Obtendo sua localização atual.");
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -142,63 +185,107 @@
                     const lon = position.coords.longitude;
                     origem = [lat, lon];
 
-                    // Centraliza o mapa na localização do usuário
                     map.setView(origem, 15);
 
                     if (markerOrigem) map.removeLayer(markerOrigem);
                     markerOrigem = L.marker(origem, { icon: criarIconeBike() })
                         .addTo(map)
-                        .bindPopup("<b>Você está aqui (Origem)</b>")
+                        .bindPopup("<b>Você está aqui</b>")
                         .openPopup();
 
-                    instructionsDiv.innerHTML = "Localização obtida! Agora clique no mapa para escolher o <b>Destino 🏁</b>.";
+                    instructionsDiv.innerHTML = "Localização obtida! Escolha o destino usando o microfone ou clicando no mapa.";
+                    falarTexto("Localização obtida. Toque no botão laranja para falar o seu destino.");
                 },
                 (error) => {
-                    alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
-                    console.error(error);
-                    instructionsDiv.innerHTML = "Erro ao obter localização. Tente clicar no mapa.";
+                    alert("Erro ao obter localização. Verifique as permissões.");
+                    falarTexto("Erro ao obter localização.");
                 },
                 { enableHighAccuracy: true }
             );
         });
 
-        // Evento de clique no mapa (caso queira escolher manualmente a origem ou definir o destino)
+        btnVoz.addEventListener('click', function() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                alert("Reconhecimento de voz não suportado neste navegador. Use o Google Chrome.");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            instructionsDiv.innerHTML = "Ouvindo... Diga o endereço ou local.";
+            falarTexto("Pode falar, estou ouvindo.");
+
+            recognition.start();
+
+            recognition.onresult = function(event) {
+                const textoFalado = event.results[0][0].transcript;
+                instructionsDiv.innerHTML = `Destino buscado: "<b>${textoFalado}</b>"`;
+                falarTexto(`Buscando rota para ${textoFalado}`);
+
+                const geocodingUrl = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(textoFalado)}&apiKey=${apiKey}`;
+
+                fetch(geocodingUrl)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.features && data.features.length > 0) {
+                            const coords = data.features[0].geometry.coordinates;
+                            destino = [coords[1], coords[0]];
+
+                            if (markerDestino) map.removeLayer(markerDestino);
+                            markerDestino = L.marker(destino)
+                                .addTo(map)
+                                .bindPopup(`<b>Destino:</b> ${textoFalado}`)
+                                .openPopup();
+
+                            if (!origem) {
+                                alert("Defina o ponto de partida primeiro!");
+                                falarTexto("Por favor, defina o ponto de partida primeiro.");
+                                return;
+                            }
+
+                            calcularRota();
+                        } else {
+                            alert("Endereço não encontrado.");
+                            falarTexto("Não encontrei esse endereço.");
+                        }
+                    })
+                    .catch(err => console.error("Erro:", err));
+            };
+
+            recognition.onerror = function() {
+                instructionsDiv.innerHTML = "Não foi possível entender. Tente novamente.";
+                falarTexto("Não entendi. Tente novamente.");
+            };
+        });
+
         map.on('click', function(e) {
             const latLng = [e.latlng.lat, e.latlng.lng];
 
             if (!origem) {
-                // Se o usuário ainda não definiu a origem, o clique serve como origem manual
                 origem = latLng;
                 if (markerOrigem) map.removeLayer(markerOrigem);
-                markerOrigem = L.marker(origem, { icon: criarIconeBike() })
-                    .addTo(map)
-                    .bindPopup("<b>Início da Pedalada (Origem)</b>")
-                    .openPopup();
-                instructionsDiv.innerHTML = "Origem definida! Agora clique no mapa para definir o <b>Destino 🏁</b>.";
+                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Origem</b>").openPopup();
+                instructionsDiv.innerHTML = "Origem definida! Agora defina o destino.";
             } else if (!destino) {
-                // Se já tem origem, o clique define o destino
                 destino = latLng;
                 if (markerDestino) map.removeLayer(markerDestino);
-                markerDestino = L.marker(destino)
-                    .addTo(map)
-                    .bindPopup("<b>Destino 🏁</b>")
-                    .openPopup();
-                instructionsDiv.innerHTML = "Calculando rota de bicicleta...";
-                
+                markerDestino = L.marker(destino).addTo(map).bindPopup("<b>Destino</b>").openPopup();
+                instructionsDiv.innerHTML = "Calculando rota...";
                 calcularRota();
             } else {
-                // Reinicia o ciclo se clicar novamente após a rota pronta
                 if (markerOrigem) map.removeLayer(markerOrigem);
                 if (markerDestino) map.removeLayer(markerDestino);
                 if (routeLayer) map.removeLayer(routeLayer);
 
                 origem = latLng;
                 destino = null;
-                markerOrigem = L.marker(origem, { icon: criarIconeBike() })
-                    .addTo(map)
-                    .bindPopup("<b>Nova Origem</b>")
-                    .openPopup();
-                instructionsDiv.innerHTML = "Agora clique no mapa para definir o novo <b>Destino 🏁</b>.";
+                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Nova Origem</b>").openPopup();
+                instructionsDiv.innerHTML = "Nova origem definida. Defina o destino.";
             }
         });
     </script>
