@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rota com Geoapify e Leaflet</title>
+    <title>GPS Ciclista em Tempo Real</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -15,72 +15,192 @@
         }
         #header {
             padding: 15px;
-            background-color: #2c3e50;
+            background-color: #27ae60;
             color: white;
             text-align: center;
         }
+        #controls {
+            padding: 10px;
+            background-color: #f1f2f6;
+            text-align: center;
+            border-bottom: 1px solid #dcdde1;
+        }
+        button {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            font-size: 14px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #219653;
+        }
+        #instructions {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #34495e;
+            background-color: #ecf0f1;
+            border-bottom: 1px solid #bdc3c7;
+        }
         #map {
             width: 100%;
-            height: calc(100vh - 60px);
+            height: calc(100vh - 150px);
+        }
+        .bike-icon {
+            font-size: 24px;
+            text-align: center;
+            line-height: 24px;
         }
     </style>
 </head>
 <body>
 
     <div id="header">
-        <h2>Calculadora de Rota com Geoapify</h2>
+        <h2>🚲 GPS Ciclista em Tempo Real</h2>
+    </div>
+
+    <div id="controls">
+        <button id="btn-localizacao">📍 Usar Minha Localização Atual como Partida</button>
     </div>
     
+    <div id="instructions">Clique no botão acima ou clique no mapa para definir a Origem.</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. Insira sua chave da API do Geoapify aqui
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // 2. Inicialize o mapa centrado em uma localização inicial (ex: São Paulo)
+        // Inicializa o mapa centrado em São Paulo (provisório até pegar a localização)
         const map = L.map('map').setView([-23.5505, -46.6333], 13);
 
-        // 3. Adicione o estilo de mapa do Geoapify
         L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
-            attribution: 'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | <a href="https://openmaptiles.org/" target="_blank">© OpenMapTiles</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap contributors</a>',
+            attribution: 'Powered by <a href="https://www.geoapify.com/" target="_blank">Geoapify</a> | © OpenStreetMap contributors',
             maxZoom: 20,
             id: 'osm-carto'
         }).addTo(map);
 
-        // 4. Defina os pontos de partida (Origem) e chegada (Destino) - Formato: [Latitude, Longitude]
-        const origem = [-23.5505, -46.6333]; // Ex: Praça da Sé, SP
-        const destino = [-23.5614, -46.6565]; // Ex: Avenida Paulista, SP
+        let origem = null;
+        let destino = null;
+        let markerOrigem = null;
+        let markerDestino = null;
+        let routeLayer = null;
 
-        // Adicione marcadores nos pontos
-        L.marker(origem).addTo(map).bindPopup("<b>Início da Rota</b>").openPopup();
-        L.marker(destino).addTo(map).bindPopup("<b>Destino</b>");
+        const instructionsDiv = document.getElementById('instructions');
+        const btnLocalizacao = document.getElementById('btn-localizacao');
 
-        // 5. Requisição para a API de Roteamento do Geoapify
-        const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=drive&apiKey=${apiKey}`;
+        function criarIconeBike() {
+            return L.divIcon({
+                className: 'bike-icon',
+                html: '🚲',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+        }
 
-        fetch(routingUrl)
-            .then(response => response.json())
-            .then(result => {
-                if (result.features && result.features.length > 0) {
-                    // Desenha a linha da rota no mapa usando GeoJSON retornado pela API
-                    L.geoJSON(result, {
-                        style: {
-                            color: "#3498db",
-                            weight: 6,
-                            opacity: 0.8
-                        }
-                    }).addTo(map);
+        // Função para calcular e desenhar a rota
+        function calcularRota() {
+            const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=bicycle&apiKey=${apiKey}`;
 
-                    // Ajusta o zoom do mapa para abranger toda a rota
-                    const bounds = L.geoJSON(result).getBounds();
-                    map.fitBounds(bounds, { padding: [50, 50] });
-                } else {
-                    alert("Não foi possível encontrar uma rota.");
-                }
-            })
-            .catch(error => console.log('Erro ao buscar a rota:', error));
+            fetch(routingUrl)
+                .then(response => response.json())
+                .then(result => {
+                    if (result.features && result.features.length > 0) {
+                        if (routeLayer) map.removeLayer(routeLayer);
+
+                        routeLayer = L.geoJSON(result, {
+                            style: { color: "#27ae60", weight: 6, opacity: 0.8 }
+                        }).addTo(map);
+
+                        const bounds = routeLayer.getBounds();
+                        map.fitBounds(bounds, { padding: [50, 50] });
+
+                        instructionsDiv.innerHTML = "Rota traçada com sucesso! Bom pedal! 🚲🏁";
+                    } else {
+                        alert("Não foi possível encontrar uma rota de bicicleta entre os pontos.");
+                    }
+                })
+                .catch(error => console.log('Erro ao buscar a rota:', error));
+        }
+
+        // Botão para pegar a localização em tempo real via navegador (GPS)
+        btnLocalizacao.addEventListener('click', function() {
+            if (!navigator.geolocation) {
+                alert("Seu navegador não suporta geolocalização.");
+                return;
+            }
+
+            instructionsDiv.innerHTML = "Obtendo sua localização atual...";
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    origem = [lat, lon];
+
+                    // Centraliza o mapa na localização do usuário
+                    map.setView(origem, 15);
+
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeBike() })
+                        .addTo(map)
+                        .bindPopup("<b>Você está aqui (Origem)</b>")
+                        .openPopup();
+
+                    instructionsDiv.innerHTML = "Localização obtida! Agora clique no mapa para escolher o <b>Destino 🏁</b>.";
+                },
+                (error) => {
+                    alert("Não foi possível obter sua localização. Verifique as permissões do navegador.");
+                    console.error(error);
+                    instructionsDiv.innerHTML = "Erro ao obter localização. Tente clicar no mapa.";
+                },
+                { enableHighAccuracy: true }
+            );
+        });
+
+        // Evento de clique no mapa (caso queira escolher manualmente a origem ou definir o destino)
+        map.on('click', function(e) {
+            const latLng = [e.latlng.lat, e.latlng.lng];
+
+            if (!origem) {
+                // Se o usuário ainda não definiu a origem, o clique serve como origem manual
+                origem = latLng;
+                if (markerOrigem) map.removeLayer(markerOrigem);
+                markerOrigem = L.marker(origem, { icon: criarIconeBike() })
+                    .addTo(map)
+                    .bindPopup("<b>Início da Pedalada (Origem)</b>")
+                    .openPopup();
+                instructionsDiv.innerHTML = "Origem definida! Agora clique no mapa para definir o <b>Destino 🏁</b>.";
+            } else if (!destino) {
+                // Se já tem origem, o clique define o destino
+                destino = latLng;
+                if (markerDestino) map.removeLayer(markerDestino);
+                markerDestino = L.marker(destino)
+                    .addTo(map)
+                    .bindPopup("<b>Destino 🏁</b>")
+                    .openPopup();
+                instructionsDiv.innerHTML = "Calculando rota de bicicleta...";
+                
+                calcularRota();
+            } else {
+                // Reinicia o ciclo se clicar novamente após a rota pronta
+                if (markerOrigem) map.removeLayer(markerOrigem);
+                if (markerDestino) map.removeLayer(markerDestino);
+                if (routeLayer) map.removeLayer(routeLayer);
+
+                origem = latLng;
+                destino = null;
+                markerOrigem = L.marker(origem, { icon: criarIconeBike() })
+                    .addTo(map)
+                    .bindPopup("<b>Nova Origem</b>")
+                    .openPopup();
+                instructionsDiv.innerHTML = "Agora clique no mapa para definir o novo <b>Destino 🏁</b>.";
+            }
+        });
     </script>
 </body>
 </html>
