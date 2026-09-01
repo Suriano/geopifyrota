@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Ciclista com Rotação</title>
+    <title>GPS Ciclista com Gravação de Trajeto</title>
 
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
 
@@ -14,22 +13,21 @@
             margin: 0;
             padding: 0;
             font-family: Arial, sans-serif;
-            /* Evita zoom indesejado no corpo da página no celular */
             touch-action: manipulation;
         }
         #header {
-            padding: 12px;
+            padding: 10px;
             background-color: #27ae60;
             color: white;
             text-align: center;
         }
         #controls {
-            padding: 10px;
+            padding: 8px;
             background-color: #f1f2f6;
             text-align: center;
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
             border-bottom: 1px solid #dcdde1;
         }
@@ -37,8 +35,8 @@
             background-color: #27ae60;
             color: white;
             border: none;
-            padding: 10px 15px;
-            font-size: 14px;
+            padding: 8px 12px;
+            font-size: 13px;
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
@@ -52,18 +50,33 @@
         #btn-voz:hover {
             background-color: #d35400;
         }
+        #btn-gravar {
+            background-color: #c0392b;
+        }
+        #btn-gravar.gravando {
+            background-color: #7f8c8d;
+            animation: pulsar 1.5s infinite;
+        }
+        #btn-marcar {
+            background-color: #f39c12;
+        }
+        @keyframes pulsar {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
         #instructions {
-            padding: 10px;
+            padding: 8px;
             text-align: center;
             font-weight: bold;
             color: #34495e;
             background-color: #ecf0f1;
             border-bottom: 1px solid #bdc3c7;
+            font-size: 14px;
         }
         #map {
             width: 100%;
-            height: calc(100vh - 160px);
-            /* Essencial para liberar o movimento com dois dedos no mapa */
+            height: calc(100vh - 170px);
             touch-action: none; 
         }
         .bike-icon {
@@ -76,26 +89,25 @@
 <body>
 
     <div id="header">
-        <h2>🚲 GPS Ciclista (Girar com os Dedos)</h2>
+        <h2>🚲 GPS Ciclista & Rastreio</h2>
     </div>
 
     <div id="controls">
-        <button id="btn-localizacao">📍 Minha Localização</button>
-        <button id="btn-voz">🎤 Falar Destino</button>
+        <button id="btn-localizacao">📍 Local</button>
+        <button id="btn-voz">🎤 Destino</button>
+        <button id="btn-gravar">🔴 Gravar Pedal</button>
+        <button id="btn-marcar">⭐ Marcar Ponto</button>
     </div>
     
-    <div id="instructions">Coloque dois dedos no mapa e gire para testar.</div>
+    <div id="instructions">Toque em "Gravar Pedal" para iniciar o registro por onde passar.</div>
     <div id="map"></div>
 
-    <!-- Leaflet JS (Obrigatório vir antes da extensão) -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Rotate JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // Inicialização com suporte total a rotação por toque
         const map = L.map('map', {
             rotate: true,
             touchRotate: true,
@@ -117,9 +129,19 @@
         let markerDestino = null;
         let routeLayer = null;
 
+        // Variáveis de Gravação de Trajeto e Pontos
+        let isGravando = false;
+        let watchId = null;
+        let coordsGravadas = [];
+        let pontosDeMelhoria = [];
+        let trackLayer = null;
+        let marcadoresMelhoriaLayers = [];
+
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnVoz = document.getElementById('btn-voz');
+        const btnGravar = document.getElementById('btn-gravar');
+        const btnMarcar = document.getElementById('btn-marcar');
 
         function criarIconeBike() {
             return L.divIcon({
@@ -133,21 +155,10 @@
         function falarTexto(texto) {
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
-
             const utterance = new SpeechSynthesisUtterance(texto);
             utterance.lang = 'pt-BR';
             utterance.rate = 1.05;
-
-            const voices = window.speechSynthesis.getVoices();
-            const melhorVoz = voices.find(v => v.lang === 'pt-BR' && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Neural'))) ||
-                              voices.find(v => v.lang === 'pt-BR' || v.lang === 'pt_BR');
-
-            if (melhorVoz) utterance.voice = melhorVoz;
             window.speechSynthesis.speak(utterance);
-        }
-
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
         }
 
         function calcularRota() {
@@ -160,138 +171,193 @@
                         if (routeLayer) map.removeLayer(routeLayer);
 
                         routeLayer = L.geoJSON(result, {
-                            style: { color: "#27ae60", weight: 6, opacity: 0.8 }
+                            style: { color: "#2980b9", weight: 6, opacity: 0.8 }
                         }).addTo(map);
 
                         const bounds = routeLayer.getBounds();
                         map.fitBounds(bounds, { padding: [50, 50] });
 
-                        instructionsDiv.innerHTML = "Rota traçada com sucesso! Bom pedal! 🚲🏁";
-                        falarTexto("Rota calculada com sucesso. Bom pedal!");
+                        instructionsDiv.innerHTML = "Rota traçada! Bom pedal! 🚲";
+                        falarTexto("Rota calculada com sucesso.");
                     } else {
                         alert("Não foi possível encontrar uma rota de bicicleta.");
-                        falarTexto("Não foi possível encontrar uma rota.");
                     }
                 })
                 .catch(error => console.log('Erro ao buscar a rota:', error));
         }
+
+        // Controle de Gravação do Trajeto
+        btnGravar.addEventListener('click', function() {
+            if (!isGravando) {
+                // Iniciar Gravação
+                if (!navigator.geolocation) {
+                    alert("Geolocalização não suportada.");
+                    return;
+                }
+
+                coordsGravadas = [];
+                pontosDeMelhoria = [];
+                isGravando = true;
+                btnGravar.textContent = "⏹️ Parar Gravação";
+                btnGravar.classList.add('gravando');
+                instructionsDiv.innerHTML = "🔴 Gravando trajeto em tempo real...";
+                falarTexto("Gravação de trajeto iniciada.");
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
+                watchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lon = position.coords.longitude;
+                        const novaCoord = [lat, lon];
+
+                        coordsGravadas.push(novaCoord);
+                        map.setView(novaCoord, 16);
+
+                        if (markerOrigem) map.removeLayer(markerOrigem);
+                        markerOrigem = L.marker(novaCoord, { icon: criarIconeBike() }).addTo(map);
+
+                        // Desenhar/Atualizar a linha percorrida
+                        if (trackLayer) map.removeLayer(trackLayer);
+                        trackLayer = L.polyline(coordsGravadas, { color: '#e74c3c', weight: 5 }).addTo(map);
+                    },
+                    (error) => { console.error("Erro no GPS:", error); },
+                    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+                );
+
+            } else {
+                // Parar Gravação
+                isGravando = false;
+                navigator.geolocation.clearWatch(watchId);
+                btnGravar.textContent = "🔴 Gravar Pedal";
+                btnGravar.classList.remove('gravando');
+                instructionsDiv.innerHTML = "✅ Gravação encerrada. Dados salvos!";
+                falarTexto("Gravação encerrada com sucesso.");
+
+                // Gerar arquivo para download com o trajeto e os pontos de melhoria
+                const dadosPedal = {
+                    data: new Date().toISOString(),
+                    trajeto: coordsGravadas,
+                    pontosMelhoria: pontosDeMelhoria
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosPedal));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `pedal_${new Date().toISOString().slice(0,10)}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+            }
+        });
+
+        // Marcar Ponto onde é Bom ou Precisa de Melhoria
+        btnMarcar.addEventListener('click', function() {
+            if (!isGravando) {
+                alert("Inicie a gravação do pedal primeiro para marcar os pontos por onde passa!");
+                return;
+            }
+
+            if (coordsGravadas.length === 0) {
+                alert("Aguardando sinal de GPS para marcar a posição atual.");
+                return;
+            }
+
+            const ultimaPos = coordsGravadas[coordsGravadas.length - 1];
+            const nota = prompt("Como avalia este local? (Ex: 'Ótima ciclovia', 'Falta sinalização', 'Buraco perigoso'):", "Bom trecho / Ponto de atenção");
+
+            if (nota !== null) {
+                const pontoInfo = {
+                    coordenadas: ultimaPos,
+                    comentario: nota,
+                    horario: new Date().toLocaleTimeString()
+                };
+                pontosDeMelhoria.push(pontoInfo);
+
+                const marcador = L.marker(ultimaPos).addTo(map)
+                    .bindPopup(`<b>⚠️ Ponto Marcado:</b><br>${nota}`)
+                    .openPopup();
+
+                marcadoresMelhoriaLayers.push(marcador);
+                falarTexto("Ponto marcado com sucesso.");
+            }
+        });
 
         btnLocalizacao.addEventListener('click', function() {
             if (!navigator.geolocation) {
                 alert("Geolocalização não suportada.");
                 return;
             }
-
-            instructionsDiv.innerHTML = "Obtendo sua localização atual...";
-            falarTexto("Obtendo sua localização atual.");
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    const lat = position.coords.latitude;
-                    const lon = position.coords.longitude;
-                    origem = [lat, lon];
-
-                    map.setView(origem, 15);
-
-                    if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(origem, { icon: criarIconeBike() })
-                        .addTo(map)
-                        .bindPopup("<b>Você está aqui</b>")
-                        .openPopup();
-
-                    instructionsDiv.innerHTML = "Localização obtida! Use o botão de voz para falar o destino.";
-                    falarTexto("Localização obtida. Toque no botão laranja para falar o seu destino.");
-                },
-                (error) => {
-                    alert("Erro ao obter localização. Verifique as permissões.");
-                    falarTexto("Erro ao obter localização.");
-                },
-                { enableHighAccuracy: true }
-            );
+            instructionsDiv.innerHTML = "Obtendo sua localização...";
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                origem = [lat, lon];
+                map.setView(origem, 15);
+                if (markerOrigem) map.removeLayer(markerOrigem);
+                markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Você está aqui</b>").openPopup();
+                instructionsDiv.innerHTML = "Localização obtida!";
+            }, () => { alert("Erro ao obter localização."); }, { enableHighAccuracy: true });
         });
 
         btnVoz.addEventListener('click', function() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            
             if (!SpeechRecognition) {
                 alert("Reconhecimento de voz não suportado neste navegador. Use o Google Chrome.");
                 return;
             }
-
             const recognition = new SpeechRecognition();
             recognition.lang = 'pt-BR';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
-            instructionsDiv.innerHTML = "Ouvindo... Diga o endereço ou local.";
-            falarTexto("Pode falar, estou ouvindo.");
-
+            instructionsDiv.innerHTML = "Ouvindo destino...";
+            falarTexto("Pode falar o destino.");
             recognition.start();
 
             recognition.onresult = function(event) {
                 const textoFalado = event.results[0][0].transcript;
-                instructionsDiv.innerHTML = `Destino buscado: "<b>${textoFalado}</b>"`;
-                falarTexto(`Buscando rota para ${textoFalado}`);
-
-                const geocodingUrl = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(textoFalado)}&apiKey=${apiKey}`;
-
-                fetch(geocodingUrl)
+                instructionsDiv.innerHTML = `Buscando: <b>${textoFalado}</b>`;
+                fetch(`https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(textoFalado)}&apiKey=${apiKey}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.features && data.features.length > 0) {
                             const coords = data.features[0].geometry.coordinates;
                             destino = [coords[1], coords[0]];
-
                             if (markerDestino) map.removeLayer(markerDestino);
-                            markerDestino = L.marker(destino)
-                                .addTo(map)
-                                .bindPopup(`<b>Destino:</b> ${textoFalado}`)
-                                .openPopup();
-
+                            markerDestino = L.marker(destino).addTo(map).bindPopup(`<b>Destino:</b> ${textoFalado}`).openPopup();
                             if (!origem) {
-                                alert("Defina o ponto de partida primeiro!");
-                                falarTexto("Por favor, defina o ponto de partida primeiro.");
+                                alert("Defina o ponto de partida ou clique em 'Local' primeiro!");
                                 return;
                             }
-
                             calcularRota();
                         } else {
                             alert("Endereço não encontrado.");
-                            falarTexto("Não encontrei esse endereço.");
                         }
-                    })
-                    .catch(err => console.error("Erro:", err));
-            };
-
-            recognition.onerror = function() {
-                instructionsDiv.innerHTML = "Não foi possível entender. Tente novamente.";
-                falarTexto("Não entendi. Tente novamente.");
+                    });
             };
         });
 
         map.on('click', function(e) {
+            if (isGravando) return; // Bloqueia cliques manuais se estiver gravando em tempo real
             const latLng = [e.latlng.lat, e.latlng.lng];
-
             if (!origem) {
                 origem = latLng;
                 if (markerOrigem) map.removeLayer(markerOrigem);
                 markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Origem</b>").openPopup();
-                instructionsDiv.innerHTML = "Origem definida! Agora defina o destino.";
+                instructionsDiv.innerHTML = "Origem definida! Defina o destino.";
             } else if (!destino) {
                 destino = latLng;
                 if (markerDestino) map.removeLayer(markerDestino);
                 markerDestino = L.marker(destino).addTo(map).bindPopup("<b>Destino</b>").openPopup();
-                instructionsDiv.innerHTML = "Calculando rota...";
                 calcularRota();
             } else {
                 if (markerOrigem) map.removeLayer(markerOrigem);
                 if (markerDestino) map.removeLayer(markerDestino);
                 if (routeLayer) map.removeLayer(routeLayer);
-
                 origem = latLng;
                 destino = null;
                 markerOrigem = L.marker(origem, { icon: criarIconeBike() }).addTo(map).bindPopup("<b>Nova Origem</b>").openPopup();
-                instructionsDiv.innerHTML = "Nova origem definida. Defina o destino.";
+                instructionsDiv.innerHTML = "Nova origem definida.";
             }
         });
     </script>
