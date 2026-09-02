@@ -131,7 +131,7 @@
             height: calc(100vh - 190px);
             touch-action: none; 
         }
-        .moto-icon { font-size: 24px; text-align: center; line-height: 24px; }
+        .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
     </style>
 </head>
 <body>
@@ -218,10 +218,10 @@
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
 
-        function criarIconeMoto() {
+        function criarIconeViatura() {
             return L.divIcon({
-                className: 'moto-icon',
-                html: '🏍️',
+                className: 'viatura-icon',
+                html: '🚔',
                 iconSize: [30, 30],
                 iconAnchor: [15, 15]
             });
@@ -283,7 +283,7 @@
                 obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                     ruaAtualNome = nomeRua;
                     if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
+                    markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
                         .bindPopup(`<b>LOCALIZAÇÃO ATUAL</b><br>${ruaAtualNome}`).openPopup();
                     instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
                 });
@@ -352,7 +352,7 @@
                     const novaCoord = [ultimaLat, ultimaLon];
                     map.setView(novaCoord, 16);
                     if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
+                    markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
                 }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             }
         }
@@ -525,17 +525,14 @@
             leitor.readAsText(arquivo);
         });
 
-        // Botão para alternar entre visualizar e editar o relatório
         btnEditar.addEventListener('click', function() {
             if (!emModoEdicao) {
-                // Entrar no modo de edição
                 emModoEdicao = true;
                 btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
                 
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
             } else {
-                // Salvar alterações da edição
                 const novoTexto = document.getElementById('textarea-edicao').value;
                 textoRelatorioPronto = novoTexto;
                 emModoEdicao = false;
@@ -549,7 +546,6 @@
         });
 
         btnWhatsapp.addEventListener('click', function() {
-            // Se estiver editando no momento do clique, salva automaticamente antes de abrir o WhatsApp
             if (emModoEdicao) {
                 const novoTexto = document.getElementById('textarea-edicao').value;
                 textoRelatorioPronto = novoTexto;
@@ -625,7 +621,7 @@
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosRota, null, 2));
                 const downloadAnchor = document.createElement('a');
                 downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", `moto_trajeto_${new Date().toISOString().slice(0,10)}.json`);
+                downloadAnchor.setAttribute("download", `viatura_trajeto_${new Date().toISOString().slice(0,10)}.json`);
                 document.body.appendChild(downloadAnchor);
                 downloadAnchor.click();
                 downloadAnchor.remove();
