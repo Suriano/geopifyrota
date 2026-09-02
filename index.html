@@ -50,6 +50,7 @@
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
         #btn-importar { background-color: #2980b9; }
+        #btn-limpar { background-color: #7f8c8d; }
 
         @keyframes pulsar {
             0% { opacity: 1; }
@@ -126,7 +127,8 @@
         <button id="btn-voz">🎤 DESTINO</button>
         <button id="btn-gravar">🔴 GRAVAR ROTA</button>
         <button id="btn-marcar">⭐ MARCAR PONTO</button>
-        <button id="btn-importar">📂 ABRIR RELATÓRIO</button>
+        <button id="btn-importar">📂 ABRIR</button>
+        <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
         <input type="file" id="input-json" style="display: none;" />
     </div>
     
@@ -189,6 +191,7 @@
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
         const btnImportar = document.getElementById('btn-importar');
+        const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
@@ -267,16 +270,82 @@
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
+        function salvarEstadoLocal() {
+            const estado = {
+                registrosTrajeto,
+                pontosDeMelhoria,
+                textoRelatorioPronto,
+                temRelatorioVisivel: painelRelatorio.style.display === "block"
+            };
+            localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
+        function restaurarEstadoLocal() {
+            const salvo = localStorage.getItem('gps_rpm_estado_atual');
+            if (!salvo) return;
+
+            try {
+                const estado = JSON.parse(salvo);
+                registrosTrajeto = estado.registrosTrajeto || [];
+                pontosDeMelhoria = estado.pontosDeMelhoria || [];
+                textoRelatorioPronto = estado.textoRelatorioPronto || "";
+
+                if (estado.temRelatorioVisivel && textoRelatorioPronto) {
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                    painelRelatorio.style.display = "block";
+                }
+
+                const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
+                if (coordsValidas.length > 0) {
+                    trackLayer = L.polyline(coordsValidas, { color: '#2980b9', weight: 5 }).addTo(map);
+                    map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                }
+
+                pontosDeMelhoria.forEach(pm => {
+                    if (pm.coordenadas) {
+                        const m = L.marker(pm.coordenadas).addTo(map)
+                            .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                        marcadoresMelhoriaLayers.push(m);
+                    }
+                });
+
+                if (registrosTrajeto.length > 0) {
+                    instructionsDiv.innerHTML = `📂 DADOS ANTERIORES RECUPERADOS COM SUCESSO.`;
+                }
+            } catch (e) {
+                console.error("Erro ao recuperar estado salvo", e);
+            }
+        }
+
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
+            restaurarEstadoLocal();
         });
 
         btnImportar.addEventListener('click', function() {
             inputJson.click();
         });
 
-        // Leitura do JSON e montagem fiel do relatório no padrão RSO
+        // Botão para limpar dados e iniciar novo relatório
+        btnLimpar.addEventListener('click', function() {
+            if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
+                localStorage.removeItem('gps_rpm_estado_atual');
+                registrosTrajeto = [];
+                pontosDeMelhoria = [];
+                textoRelatorioPronto = "";
+                textoRelatorioVisivel.textContent = "";
+                painelRelatorio.style.display = "none";
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
+                instructionsDiv.innerHTML = "🧹 DADOS LIMPOS. PRONTO PARA NOVO REGISTRO.";
+                falarTexto("Dados limpos.");
+            }
+        });
+
         inputJson.addEventListener('change', function(event) {
             const arquivo = event.target.files[0];
             if (!arquivo) return;
@@ -289,7 +358,6 @@
                     const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
                     const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
 
-                    // Montagem formal do texto baseado puramente nos dados do arquivo
                     let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
                     relatorioFormal += `DATA: ${dados.dataInicio || dados.data || 'N/A'} | TEMPO TOTAL: ${dados.tempoTotal || 'N/A'}\n\n`;
                     relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
@@ -320,15 +388,16 @@
                     }
 
                     textoRelatorioPronto = relatorioFormal;
-                    
-                    // Exibe o relatório fiel no painel da tela
+                    registrosTrajeto = historico;
+                    pontosDeMelhoria = pontosAtencao;
+
                     textoRelatorioVisivel.textContent = relatorioFormal;
                     painelRelatorio.style.display = "block";
+                    salvarEstadoLocal();
 
                     instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
                     falarTexto("Relatório carregado com sucesso.");
 
-                    // Atualiza o mapa com a rota e os pontos
                     if (trackLayer) map.removeLayer(trackLayer);
                     marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
                     marcadoresMelhoriaLayers = [];
@@ -363,7 +432,6 @@
             leitor.readAsText(arquivo);
         });
 
-        // Ação do Botão WhatsApp (envia o texto oficial formatado)
         btnWhatsapp.addEventListener('click', function() {
             if (!textoRelatorioPronto) return;
             const urlWpp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`;
@@ -385,6 +453,8 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
                 registrosTrajeto.push({ hora: horaAtual, rua: ruaAtualNome, coordenadas: novaCoord });
+                salvarEstadoLocal();
+
                 if (trackLayer) map.removeLayer(trackLayer);
                 trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
                 instructionsDiv.innerHTML = `⏱️ PONTO GRAVADO (${horaAtual}): <b>${ruaAtualNome}</b>`;
@@ -426,6 +496,7 @@
                         obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                             ruaAtualNome = nomeRua;
                             registrosTrajeto.push({ hora: new Date().toLocaleTimeString('pt-BR'), rua: ruaAtualNome, coordenadas: novaCoord });
+                            salvarEstadoLocal();
                         });
                     }
                 }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
@@ -454,6 +525,8 @@
                 document.body.appendChild(downloadAnchor);
                 downloadAnchor.click();
                 downloadAnchor.remove();
+
+                localStorage.removeItem('gps_rpm_estado_atual');
             }
         });
 
@@ -465,6 +538,8 @@
             if (nota !== null) {
                 const notaUpper = nota.toUpperCase();
                 pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
+                salvarEstadoLocal();
+
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
                 falarTexto("Ponto marcado.");
