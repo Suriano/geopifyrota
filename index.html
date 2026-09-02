@@ -31,8 +31,9 @@
             gap: 8px;
             flex-wrap: wrap;
             border-bottom: 1px solid #dcdde1;
+            align-items: center;
         }
-        button {
+        button, .autocomplete-container input {
             background-color: #34495e;
             color: white;
             border: none;
@@ -41,11 +42,59 @@
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
+            box-sizing: border-box;
         }
         button:hover {
             background-color: #2c3e50;
         }
-        #btn-voz { background-color: #e67e22; }
+        
+        /* Estilos do Campo de Destino com Autocompletar */
+        #btn-voz-container {
+            position: relative;
+            display: inline-block;
+        }
+        #input-destino {
+            background-color: #e67e22;
+            color: white;
+            width: 160px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 5px;
+            outline: none;
+        }
+        #input-destino::placeholder {
+            color: white;
+            opacity: 0.9;
+        }
+        #sugestoes-destino {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 0 0 5px 5px;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            display: none;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+        }
+        .sugestao-item {
+            padding: 8px 10px;
+            font-size: 12px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            font-weight: normal;
+            text-transform: uppercase;
+        }
+        .sugestao-item:hover {
+            background-color: #f1f2f6;
+        }
+
         #btn-gravar { background-color: #c0392b; min-width: 140px; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
@@ -143,7 +192,13 @@
 
     <div id="controls">
         <button id="btn-localizacao">📍 LOCAL</button>
-        <button id="btn-voz">🎤 DESTINO</button>
+        
+        <!-- Substituído por input de texto com autocomplete de Destino -->
+        <div id="btn-voz-container">
+            <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
+            <div id="sugestoes-destino"></div>
+        </div>
+
         <button id="btn-gravar">🔴 GRAVAR ROTA</button>
         <button id="btn-marcar">⭐ MARCAR PONTO</button>
         <button id="btn-importar">📂 ABRIR</button>
@@ -188,6 +243,7 @@
 
         let origem = null;
         let markerOrigem = null;
+        let markerDestino = null;
 
         let isGravando = false;
         let watchId = null;
@@ -217,6 +273,9 @@
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
+        
+        const inputDestino = document.getElementById('input-destino');
+        const sugestoesDestino = document.getElementById('sugestoes-destino');
 
         function criarIconeViatura() {
             return L.divIcon({
@@ -255,6 +314,65 @@
                     if (callback) callback("VIA NÃO IDENTIFICADA");
                 });
         }
+
+        // --- Lógica de Filtro e Autocompletar de Destino ---
+        let timeoutAutocomplete = null;
+        inputDestino.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(timeoutAutocomplete);
+
+            if (query.length < 3) {
+                sugestoesDestino.style.display = 'none';
+                sugestoesDestino.innerHTML = '';
+                return;
+            }
+
+            timeoutAutocomplete = setTimeout(() => {
+                let biasParam = ultimaLat && ultimaLon ? `&bias=proximity:${ultimaLon},${ultimaLat}` : '';
+                const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=5&lang=pt${biasParam}&apiKey=${apiKey}`;
+                
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        sugestoesDestino.innerHTML = '';
+                        if (data.features && data.features.length > 0) {
+                            data.features.forEach(feature => {
+                                const props = feature.properties;
+                                const div = document.createElement('div');
+                                div.className = 'sugestao-item';
+                                div.textContent = props.formatted;
+                                
+                                div.addEventListener('click', () => {
+                                    inputDestino.value = props.formatted;
+                                    sugestoesDestino.style.display = 'none';
+                                    
+                                    const coords = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
+                                    map.setView(coords, 17);
+                                    
+                                    if (markerDestino) map.removeLayer(markerDestino);
+                                    markerDestino = L.marker(coords).addTo(map)
+                                        .bindPopup(`<b>DESTINO:</b><br>${props.formatted}`).openPopup();
+                                    
+                                    instructionsDiv.innerHTML = `🎯 <b>DESTINO DEFINIDO:</b> ${props.formatted.toUpperCase()}`;
+                                });
+
+                                sugestoesDestino.appendChild(div);
+                            });
+                            sugestoesDestino.style.display = 'block';
+                        } else {
+                            sugestoesDestino.style.display = 'none';
+                        }
+                    })
+                    .catch(err => console.error("Erro no autocompletar:", err));
+            }, 300);
+        });
+
+        // Fechar sugestões ao clicar fora
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('btn-voz-container').contains(e.target)) {
+                sugestoesDestino.style.display = 'none';
+            }
+        });
 
         async function atualizarContadorGlobal() {
             try {
@@ -574,7 +692,6 @@
                 
                 let escolha = prompt("Escolha o intervalo de registro automático:\n1 - De 20 em 20 minutos\n2 - De 30 em 30 minutos", "1");
                 
-                // Se clicar em cancelar, o prompt retorna null, interrompendo o início da gravação
                 if (escolha === null) return;
 
                 if (escolha === "2") {
