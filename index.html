@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS RPM - Início Automático</title>
+    <title>GPS Motociclista - Histórico Detalhado</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -90,7 +90,7 @@
 <body>
 
     <div id="header">
-        <h2>🏍️ GPS RPM 1ªCia 6ºBPMM</h2>
+        <h2>🏍️ GPS Motociclista & Ruas</h2>
     </div>
 
     <div id="controls">
@@ -111,7 +111,6 @@
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // Inicializa o mapa temporariamente em São Paulo (será reorientado para o usuário logo em seguida)
         const map = L.map('map', {
             rotate: true,
             touchRotate: true,
@@ -135,7 +134,7 @@
 
         let isGravando = false;
         let watchId = null;
-        let coordsGravadas = [];
+        let registrosTrajeto = []; // Agora armazena objetos detalhados (lat, lon, hora, rua)
         let pontosDeMelhoria = [];
         let trackLayer = null;
         let marcadoresMelhoriaLayers = [];
@@ -183,14 +182,13 @@
                 })
                 .catch(err => {
                     console.log("Erro ao buscar rua:", err);
-                    if (callback) callback("Erro ao carregar nome da rua");
+                    if (callback) callback("Rua não identificada");
                 });
         }
 
-        // FUNÇÃO PARA OBTER E DEFINIR A LOCALIZAÇÃO ATUAL
         function centralizarNaMinhaLocalizacao() {
             if (!navigator.geolocation) {
-                alert("Geolocalização não suportada pelo navegador.");
+                alert("Geolocalização não suportada.");
                 return;
             }
 
@@ -211,11 +209,9 @@
                 });
             }, (error) => {
                 instructionsDiv.innerHTML = "⚠️ Ative o GPS para definir sua posição.";
-                console.error("Erro de GPS:", error);
             }, { enableHighAccuracy: true });
         }
 
-        // Executa a localização automaticamente assim que a página carrega
         window.addEventListener('load', () => {
             centralizarNaMinhaLocalizacao();
         });
@@ -252,12 +248,12 @@
                     return;
                 }
 
-                coordsGravadas = [];
+                registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 isGravando = true;
                 btnGravar.textContent = "⏹️ Parar Gravação";
                 btnGravar.classList.add('gravando');
-                instructionsDiv.innerHTML = "🔴 Iniciando rastreio...";
+                instructionsDiv.innerHTML = "🔴 Iniciando rastreio detalhado...";
                 falarTexto("Gravação de rota iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -269,25 +265,38 @@
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
                         const novaCoord = [lat, lon];
+                        const horaAtual = new Date().toLocaleTimeString('pt-BR');
 
-                        coordsGravadas.push(novaCoord);
                         map.setView(novaCoord, 16);
 
                         if (markerOrigem) map.removeLayer(markerOrigem);
                         markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
 
-                        if (trackLayer) map.removeLayer(trackLayer);
-                        trackLayer = L.polyline(coordsGravadas, { color: '#c0392b', weight: 5 }).addTo(map);
-
+                        // Identifica a rua e salva o registro completo com hora e rua
                         const agora = Date.now();
-                        if (agora - ultimaChamadaRua > 6000) {
+                        if (agora - ultimaChamadaRua > 5000) {
                             ultimaChamadaRua = agora;
                             obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
                                 ruaAtualNome = nomeRua;
-                                if (isGravando) {
-                                    instructionsDiv.innerHTML = `🏍️ <b>Rua atual:</b> ${ruaAtualNome}`;
-                                }
+                                instructionsDiv.innerHTML = `🏍️ <b>${ruaAtualNome}</b> (${horaAtual})`;
+
+                                registrosTrajeto.push({
+                                    hora: horaAtual,
+                                    rua: ruaAtualNome,
+                                    coordenadas: novaCoord
+                                });
+
+                                // Atualiza a linha no mapa com base nas coordenadas gravadas
+                                atualizarLinhaTrajeto();
                             });
+                        } else {
+                            // Adiciona ponto intermediário mantendo a última rua verificada
+                            registrosTrajeto.push({
+                                hora: horaAtual,
+                                rua: ruaAtualNome,
+                                coordenadas: novaCoord
+                            });
+                            atualizarLinhaTrajeto();
                         }
                     },
                     (error) => { console.error("Erro GPS:", error); },
@@ -303,12 +312,12 @@
                 falarTexto("Gravação encerrada.");
 
                 const dadosRota = {
-                    data: new Date().toISOString(),
-                    trajeto: coordsGravadas,
-                    pontosMelhoria: pontosDeMelhoria
+                    dataInicio: new Date().toLocaleDateString('pt-BR'),
+                    historicoRuasETempo: registrosTrajeto,
+                    pontosMarcados: pontosDeMelhoria
                 };
 
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosRota));
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosRota, null, 2));
                 const downloadAnchor = document.createElement('a');
                 downloadAnchor.setAttribute("href", dataStr);
                 downloadAnchor.setAttribute("download", `moto_trajeto_${new Date().toISOString().slice(0,10)}.json`);
@@ -318,30 +327,36 @@
             }
         });
 
+        function atualizarLinhaTrajeto() {
+            if (trackLayer) map.removeLayer(trackLayer);
+            const apenasCoords = registrosTrajeto.map(item => item.coordenadas);
+            trackLayer = L.polyline(apenasCoords, { color: '#c0392b', weight: 5 }).addTo(map);
+        }
+
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) {
                 alert("Inicie a gravação da rota primeiro!");
                 return;
             }
-            if (coordsGravadas.length === 0) {
+            if (registrosTrajeto.length === 0) {
                 alert("Aguardando sinal de GPS.");
                 return;
             }
 
-            const ultimaPos = coordsGravadas[coordsGravadas.length - 1];
-            const nota = prompt(`Localizado em: ${ruaAtualNome}\n\nAdicionar nota (Ex: 'Radar', 'Trânsito'):`, "Ponto de atenção");
+            const ultimoRegistro = registrosTrajeto[registrosTrajeto.length - 1];
+            const nota = prompt(`Local: ${ultimoRegistro.rua} às ${ultimoRegistro.hora}\n\nAdicionar nota (Ex: 'Radar', 'Trânsito'):`, "Ponto de atenção");
 
             if (nota !== null) {
                 const pontoInfo = {
-                    coordenadas: ultimaPos,
-                    rua: ruaAtualNome,
-                    comentario: nota,
-                    horario: new Date().toLocaleTimeString()
+                    hora: ultimoRegistro.hora,
+                    rua: ultimoRegistro.rua,
+                    coordenadas: ultimoRegistro.coordenadas,
+                    comentario: nota
                 };
                 pontosDeMelhoria.push(pontoInfo);
 
-                const marcador = L.marker(ultimaPos).addTo(map)
-                    .bindPopup(`<b>⭐ ${ruaAtualNome}</b><br>${nota}`)
+                const marcador = L.marker(ultimoRegistro.coordenadas).addTo(map)
+                    .bindPopup(`<b>⭐ ${ultimoRegistro.rua}</b><br>${nota} <br><small>${ultimoRegistro.hora}</small>`)
                     .openPopup();
 
                 marcadoresMelhoriaLayers.push(marcador);
