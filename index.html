@@ -275,9 +275,43 @@
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
-                temRelatorioVisivel: painelRelatorio.style.display === "block"
+                temRelatorioVisivel: painelRelatorio.style.display === "block",
+                isGravando,
+                segundosGravados
             };
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
+        function iniciarIntervalosGravacao() {
+            btnGravar.classList.add('gravando');
+            btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+
+            tempoGravacaoInterval = setInterval(() => {
+                segundosGravados++;
+                btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                salvarEstadoLocal(); // Salva o tempo atualizado periodicamente
+            }, 1000);
+
+            minutoRegistroInterval = setInterval(registrarPontoMinuto, 60000);
+
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition((position) => {
+                    ultimaLat = position.coords.latitude;
+                    ultimaLon = position.coords.longitude;
+                    const novaCoord = [ultimaLat, ultimaLon];
+                    map.setView(novaCoord, 16);
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
+
+                    if (registrosTrajeto.length === 0) {
+                        obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                            ruaAtualNome = nomeRua;
+                            registrosTrajeto.push({ hora: new Date().toLocaleTimeString('pt-BR'), rua: ruaAtualNome, coordenadas: novaCoord });
+                            salvarEstadoLocal();
+                        });
+                    }
+                }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+            }
         }
 
         function restaurarEstadoLocal() {
@@ -289,6 +323,8 @@
                 registrosTrajeto = estado.registrosTrajeto || [];
                 pontosDeMelhoria = estado.pontosDeMelhoria || [];
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
+                isGravando = estado.isGravando || false;
+                segundosGravados = estado.segundosGravados || 0;
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -297,7 +333,7 @@
 
                 const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
                 if (coordsValidas.length > 0) {
-                    trackLayer = L.polyline(coordsValidas, { color: '#2980b9', weight: 5 }).addTo(map);
+                    trackLayer = L.polyline(coordsValidas, { color: isGravando ? '#c0392b' : '#2980b9', weight: 5 }).addTo(map);
                     map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
                 }
 
@@ -309,7 +345,10 @@
                     }
                 });
 
-                if (registrosTrajeto.length > 0) {
+                if (isGravando) {
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO ANTERIOR...";
+                    iniciarIntervalosGravacao();
+                } else if (registrosTrajeto.length > 0) {
                     instructionsDiv.innerHTML = `📂 DADOS ANTERIORES RECUPERADOS COM SUCESSO.`;
                 }
             } catch (e) {
@@ -327,15 +366,22 @@
             inputJson.click();
         });
 
-        // Botão para limpar dados e iniciar novo relatório
         btnLimpar.addEventListener('click', function() {
             if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
+                if (isGravando) {
+                    navigator.geolocation.clearWatch(watchId);
+                    clearInterval(tempoGravacaoInterval);
+                    clearInterval(minutoRegistroInterval);
+                }
                 localStorage.removeItem('gps_rpm_estado_atual');
+                isGravando = false;
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 textoRelatorioPronto = "";
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
+                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.classList.remove('gravando');
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -468,38 +514,14 @@
                 pontosDeMelhoria = [];
                 isGravando = true;
                 segundosGravados = 0;
-                btnGravar.classList.add('gravando');
-                btnGravar.innerHTML = `⏹️ 00:00`;
                 
-                tempoGravacaoInterval = setInterval(() => {
-                    segundosGravados++;
-                    btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
-                }, 1000);
-
-                minutoRegistroInterval = setInterval(registrarPontoMinuto, 60000);
+                iniciarIntervalosGravacao();
                 instructionsDiv.innerHTML = "🔴 RASTREIO INICIADO...";
                 falarTexto("Gravação iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
                 marcadoresMelhoriaLayers = [];
-
-                watchId = navigator.geolocation.watchPosition((position) => {
-                    ultimaLat = position.coords.latitude;
-                    ultimaLon = position.coords.longitude;
-                    const novaCoord = [ultimaLat, ultimaLon];
-                    map.setView(novaCoord, 16);
-                    if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
-
-                    if (registrosTrajeto.length === 0) {
-                        obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
-                            ruaAtualNome = nomeRua;
-                            registrosTrajeto.push({ hora: new Date().toLocaleTimeString('pt-BR'), rua: ruaAtualNome, coordenadas: novaCoord });
-                            salvarEstadoLocal();
-                        });
-                    }
-                }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
 
             } else {
                 isGravando = false;
