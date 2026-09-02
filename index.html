@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GPS Motociclista com Nome da Rua</title>
+    <title>GPS Motociclista - Início Automático</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -100,7 +100,7 @@
         <button id="btn-marcar">⭐ Marcar Ponto</button>
     </div>
     
-    <div id="instructions">Clique no mapa ou toque em "Local" para ver o nome da rua.</div>
+    <div id="instructions">Obtendo sua localização atual...</div>
     <div id="map"></div>
 
     <!-- Leaflet JS -->
@@ -111,6 +111,7 @@
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
+        // Inicializa o mapa temporariamente em São Paulo (será reorientado para o usuário logo em seguida)
         const map = L.map('map', {
             rotate: true,
             touchRotate: true,
@@ -165,7 +166,6 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Função para buscar o nome da rua por coordenadas (Geocodificação Reversa)
         function obterNomeRuaPorCoord(lat, lon, callback) {
             const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&apiKey=${apiKey}&lang=pt`;
 
@@ -186,6 +186,39 @@
                     if (callback) callback("Erro ao carregar nome da rua");
                 });
         }
+
+        // FUNÇÃO PARA OBTER E DEFINIR A LOCALIZAÇÃO ATUAL
+        function centralizarNaMinhaLocalizacao() {
+            if (!navigator.geolocation) {
+                alert("Geolocalização não suportada pelo navegador.");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition((position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+                origem = [lat, lon];
+                
+                map.setView(origem, 16);
+
+                obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
+                    ruaAtualNome = nomeRua;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
+                        .bindPopup(`<b>Você está aqui</b><br>${ruaAtualNome}`)
+                        .openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>Origem:</b> ${ruaAtualNome}`;
+                });
+            }, (error) => {
+                instructionsDiv.innerHTML = "⚠️ Ative o GPS para definir sua posição.";
+                console.error("Erro de GPS:", error);
+            }, { enableHighAccuracy: true });
+        }
+
+        // Executa a localização automaticamente assim que a página carrega
+        window.addEventListener('load', () => {
+            centralizarNaMinhaLocalizacao();
+        });
 
         function calcularRota() {
             const routingUrl = `https://api.geoapify.com/v1/routing?waypoints=${origem[0]},${origem[1]}|${destino[0]},${destino[1]}&mode=drive&apiKey=${apiKey}`;
@@ -212,7 +245,6 @@
                 .catch(error => console.log('Erro ao buscar rota:', error));
         }
 
-        // Gravação em tempo real
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
                 if (!navigator.geolocation) {
@@ -318,23 +350,7 @@
         });
 
         btnLocalizacao.addEventListener('click', function() {
-            if (!navigator.geolocation) return;
-            instructionsDiv.innerHTML = "Obtendo localização...";
-            navigator.geolocation.getCurrentPosition((position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                origem = [lat, lon];
-                map.setView(origem, 15);
-
-                obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
-                    ruaAtualNome = nomeRua;
-                    if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
-                        .bindPopup(`<b>Você está aqui</b><br>${ruaAtualNome}`)
-                        .openPopup();
-                    instructionsDiv.innerHTML = `📍 <b>${ruaAtualNome}</b>`;
-                });
-            }, () => { alert("Erro ao obter localização."); }, { enableHighAccuracy: true });
+            centralizarNaMinhaLocalizacao();
         });
 
         btnVoz.addEventListener('click', function() {
@@ -372,7 +388,6 @@
             };
         });
 
-        // Clique manual no mapa descobre o nome da rua imediatamente
         map.on('click', function(e) {
             if (isGravando) return;
             const lat = e.latlng.lat;
