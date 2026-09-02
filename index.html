@@ -165,15 +165,13 @@
         }).addTo(map);
 
         let origem = null;
-        let destino = null;
         let markerOrigem = null;
-        let markerDestino = null;
-        let routeLayer = null;
 
         let isGravando = false;
         let watchId = null;
         let tempoGravacaoInterval = null;
-        let minutoRegistroInterval = null;
+        let intervaloRegistroMinutos = 20;
+        let timerRegistroInterval = null;
         let segundosGravados = 0;
 
         let registrosTrajeto = [];
@@ -187,7 +185,6 @@
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
-        const btnVoz = document.getElementById('btn-voz');
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
         const btnImportar = document.getElementById('btn-importar');
@@ -254,11 +251,12 @@
         function centralizarNaMinhaLocalizacao() {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition((position) => {
-                const lat = position.coords.latitude;
-                const lon = position.coords.longitude;
-                origem = [lat, lon];
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                origem = [ultimaLat, ultimaLon];
                 map.setView(origem, 16);
-                obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
+                
+                obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                     ruaAtualNome = nomeRua;
                     if (markerOrigem) map.removeLayer(markerOrigem);
                     markerOrigem = L.marker(origem, { icon: criarIconeMoto() }).addTo(map)
@@ -277,23 +275,57 @@
                 textoRelatorioPronto,
                 temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
-                segundosGravados
+                segundosGravados,
+                intervaloRegistroMinutos
             };
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
+        function registrarPontoAtualNoHistorico() {
+            if (!isGravando || ultimaLat === null || ultimaLon === null) return;
+            
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            const novaCoord = [ultimaLat, ultimaLon];
+
+            // Adiciona IMEDIATAMENTE ao array para não perder o registro no JSON se fechar rápido
+            const indexPonto = registrosTrajeto.length;
+            registrosTrajeto.push({ 
+                hora: horaAtual, 
+                rua: ruaAtualNome !== "AGUARDANDO..." ? ruaAtualNome : "OBTENDO LOCAL...", 
+                coordenadas: novaCoord 
+            });
+            salvarEstadoLocal();
+
+            // Atualiza o nome da rua exato em segundo plano
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                ruaAtualNome = nomeRua;
+                if (registrosTrajeto[indexPonto]) {
+                    registrosTrajeto[indexPonto].rua = ruaAtualNome;
+                }
+                salvarEstadoLocal();
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
+                instructionsDiv.innerHTML = `⏱️ PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
+            });
         }
 
         function iniciarIntervalosGravacao() {
             btnGravar.classList.add('gravando');
             btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
 
+            // Cronômetro do botão
             tempoGravacaoInterval = setInterval(() => {
                 segundosGravados++;
                 btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
-                salvarEstadoLocal(); // Salva o tempo atualizado periodicamente
+                salvarEstadoLocal();
             }, 1000);
 
-            minutoRegistroInterval = setInterval(registrarPontoMinuto, 60000);
+            // Intervalo periódico escolhido pelo usuário (20 ou 30 min)
+            const msIntervalo = intervaloRegistroMinutos * 60 * 1000;
+            timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
 
+            // Monitor de localização em tempo real
             if (navigator.geolocation) {
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
@@ -302,14 +334,6 @@
                     map.setView(novaCoord, 16);
                     if (markerOrigem) map.removeLayer(markerOrigem);
                     markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
-
-                    if (registrosTrajeto.length === 0) {
-                        obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
-                            ruaAtualNome = nomeRua;
-                            registrosTrajeto.push({ hora: new Date().toLocaleTimeString('pt-BR'), rua: ruaAtualNome, coordenadas: novaCoord });
-                            salvarEstadoLocal();
-                        });
-                    }
                 }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             }
         }
@@ -325,6 +349,7 @@
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
+                intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 20;
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -371,7 +396,7 @@
                 if (isGravando) {
                     navigator.geolocation.clearWatch(watchId);
                     clearInterval(tempoGravacaoInterval);
-                    clearInterval(minutoRegistroInterval);
+                    clearInterval(timerRegistroInterval);
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
@@ -491,32 +516,35 @@
             return (h > 0 ? String(h).padStart(2, '0') + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
         }
 
-        function registrarPontoMinuto() {
-            if (!isGravando || ultimaLat === null || ultimaLon === null) return;
-            const horaAtual = new Date().toLocaleTimeString('pt-BR');
-            const novaCoord = [ultimaLat, ultimaLon];
-
-            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
-                ruaAtualNome = nomeRua;
-                registrosTrajeto.push({ hora: horaAtual, rua: ruaAtualNome, coordenadas: novaCoord });
-                salvarEstadoLocal();
-
-                if (trackLayer) map.removeLayer(trackLayer);
-                trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
-                instructionsDiv.innerHTML = `⏱️ PONTO GRAVADO (${horaAtual}): <b>${ruaAtualNome}</b>`;
-            });
-        }
-
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
+                
+                let escolha = prompt("Escolha o intervalo de registro automático:\n1 - De 20 em 20 minutos\n2 - De 30 em 30 minutos", "1");
+                if (escolha === "2") {
+                    intervaloRegistroMinutos = 30;
+                } else {
+                    intervaloRegistroMinutos = 20;
+                }
+
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 isGravando = true;
                 segundosGravados = 0;
-                
+
+                // Captura imediata e inclusão GARANTIDA no primeiro segundo
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    ultimaLat = pos.coords.latitude;
+                    ultimaLon = pos.coords.longitude;
+                    registrarPontoAtualNoHistorico(); // Grava imediatamente no array no momento exato do clique!
+                }, (err) => {
+                    // Fallback se não obteve a tempo: usa a última coordenada salva se existir
+                    if (ultimaLat !== null && ultimaLon !== null) {
+                        registrarPontoAtualNoHistorico();
+                    }
+                }, { enableHighAccuracy: true, timeout: 5000 });
+
                 iniciarIntervalosGravacao();
-                instructionsDiv.innerHTML = "🔴 RASTREIO INICIADO...";
                 falarTexto("Gravação iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -527,7 +555,7 @@
                 isGravando = false;
                 navigator.geolocation.clearWatch(watchId);
                 clearInterval(tempoGravacaoInterval);
-                clearInterval(minutoRegistroInterval);
+                clearInterval(timerRegistroInterval);
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
