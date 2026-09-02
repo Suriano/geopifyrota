@@ -573,6 +573,10 @@
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
                 
                 let escolha = prompt("Escolha o intervalo de registro automático:\n1 - De 20 em 20 minutos\n2 - De 30 em 30 minutos", "1");
+                
+                // Se clicar em cancelar, o prompt retorna null, interrompendo o início da gravação
+                if (escolha === null) return;
+
                 if (escolha === "2") {
                     intervaloRegistroMinutos = 30;
                 } else {
