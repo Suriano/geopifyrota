@@ -92,7 +92,7 @@
 
     <div id="header">
         <h2>🏍️ GPS RPM & QTH Patrulhamento</h2>
-        <small style="color: #bdc3c7;">👥 Acessos: <span id="contador-visitas">1</span></small>
+        <small style="color: #bdc3c7;">👥 Acessos: <span id="contador-visitas">Carregando...</span></small>
     </div>
 
     <div id="controls">
@@ -196,15 +196,23 @@
                 });
         }
 
-        async function atualizarContador() {
+        // Contador Global Compartilhado em Nuvem (CountAPI)
+        async function atualizarContadorGlobal() {
             try {
-                const res = await fetch('https://api.counterapi.dev/v1/gps-rpm-patrulhamento/acessos/up');
+                // Usando o serviço countapi.xyz que é amplamente utilizado para contadores globais simples
+                const res = await fetch('https://api.countapi.xyz/hit/gps-rpm-patrulhamento/visitas');
                 const data = await res.json();
-                if (data && data.count) {
-                    document.getElementById('contador-visitas').textContent = data.count;
+                if (data && typeof data.value !== 'undefined') {
+                    document.getElementById('contador-visitas').textContent = data.value;
+                } else {
+                    throw new Error("Resposta inválida");
                 }
             } catch (e) {
-                document.getElementById('contador-visitas').textContent = "1";
+                // Fallback caso a API global caia ou seja bloqueada: tenta usar o contador local para não deixar zerado
+                console.log("Erro na nuvem, usando fallback local:", e);
+                let locais = parseInt(localStorage.getItem('gps_rpm_acessos_fallback') || '1');
+                document.getElementById('contador-visitas').textContent = locais;
+                localStorage.setItem('gps_rpm_acessos_fallback', locais + 1);
             }
         }
 
@@ -236,7 +244,7 @@
         }
 
         window.addEventListener('load', () => {
-            atualizarContador();
+            atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
         });
 
@@ -314,7 +322,6 @@
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                 }, 1000);
 
-                // Gravação automática a cada 1 minuto incluindo número da via
                 minutoRegistroInterval = setInterval(() => {
                     registrarPontoMinuto();
                 }, 60000);
