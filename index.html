@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GPS RPM & QTH Patrulhamento</title>
 
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
 
@@ -52,6 +53,7 @@
         }
         #btn-gravar {
             background-color: #c0392b;
+            min-width: 140px;
         }
         #btn-gravar.gravando {
             background-color: #7f8c8d;
@@ -103,13 +105,15 @@
     <div id="instructions">Obtendo sua localização atual...</div>
     <div id="map"></div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Rotate JS -->
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // Inicializa o mapa sem coordenadas fixas em São Paulo; elas serão ajustadas dinamicamente via geolocalização.
+        // Inicializa o mapa sem coordenadas fixas; ajusta ao usuário via geolocalização.
         const map = L.map('map', {
             rotate: true,
             touchRotate: true,
@@ -133,6 +137,9 @@
 
         let isGravando = false;
         let watchId = null;
+        let tempoGravacaoInterval = null;
+        let segundosGravados = 0;
+
         let registrosTrajeto = [];
         let pontosDeMelhoria = [];
         let trackLayer = null;
@@ -185,7 +192,6 @@
                 });
         }
 
-        // Sistema de contador estável via API pública alternativa (api.counterapi.dev)
         async function atualizarContador() {
             try {
                 const res = await fetch('https://api.counterapi.dev/v1/gps-rpm-patrulhamento/acessos/up');
@@ -221,7 +227,6 @@
                 });
             }, (error) => {
                 instructionsDiv.innerHTML = "⚠️ Ative o GPS para definir sua posição.";
-                // Fallback caso a geolocalização falhe ou seja negada inicialmente
                 map.setView([-23.5505, -46.6333], 13);
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
@@ -256,6 +261,18 @@
                 .catch(error => console.log('Erro ao buscar rota:', error));
         }
 
+        function formatarTempo(segundos) {
+            const h = Math.floor(segundos / 3600);
+            const m = Math.floor((segundos % 3600) / 60);
+            const s = segundos % 60;
+            
+            const hStr = h > 0 ? String(h).padStart(2, '0') + ':' : '';
+            const mStr = String(m).padStart(2, '0') + ':';
+            const sStr = String(s).padStart(2, '0');
+            
+            return hStr + mStr + sStr;
+        }
+
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
                 if (!navigator.geolocation) {
@@ -266,8 +283,16 @@
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 isGravando = true;
-                btnGravar.textContent = "⏹️ Parar Gravação";
+                segundosGravados = 0;
+                
                 btnGravar.classList.add('gravando');
+                btnGravar.innerHTML = `⏹️ 00:00`;
+                
+                tempoGravacaoInterval = setInterval(() => {
+                    segundosGravados++;
+                    btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                }, 1000);
+
                 instructionsDiv.innerHTML = "🔴 Iniciando rastreio detalhado...";
                 falarTexto("Gravação de rota iniciada.");
 
@@ -318,6 +343,8 @@
             } else {
                 isGravando = false;
                 navigator.geolocation.clearWatch(watchId);
+                clearInterval(tempoGravacaoInterval);
+                
                 btnGravar.textContent = "🔴 Gravar Rota";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ Gravação encerrada e arquivo gerado!";
@@ -325,6 +352,7 @@
 
                 const dadosRota = {
                     dataInicio: new Date().toLocaleDateString('pt-BR'),
+                    tempoTotal: formatarTempo(segundosGravados),
                     historicoRuasETempo: registrosTrajeto,
                     pontosMarcados: pontosDeMelhoria
                 };
