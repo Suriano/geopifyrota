@@ -73,7 +73,7 @@
             background: #ffffff;
             border-bottom: 2px solid #2c3e50;
             padding: 12px;
-            max-height: 220px;
+            max-height: 250px;
             overflow-y: auto;
             font-size: 12px;
             box-shadow: inset 0 4px 6px -4px rgba(0,0,0,0.1);
@@ -85,19 +85,26 @@
             margin-bottom: 8px;
             border-bottom: 1px solid #ccc;
             padding-bottom: 6px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .relatorio-acoes {
+            display: flex;
+            gap: 5px;
         }
         #btn-whatsapp {
             background-color: #25d366;
             color: white;
-            padding: 6px 12px;
-            font-size: 12px;
+            padding: 6px 10px;
+            font-size: 11px;
             border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
         }
-        #btn-whatsapp:hover {
-            background-color: #1ebd56;
+        #btn-editar {
+            background-color: #d35400;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+            border-radius: 4px;
         }
         .relatorio-conteudo {
             white-space: pre-wrap;
@@ -105,6 +112,18 @@
             font-family: Arial, sans-serif;
             line-height: 1.5;
             text-transform: uppercase;
+        }
+        #textarea-edicao {
+            width: 100%;
+            height: 140px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            text-transform: uppercase;
+            padding: 6px;
+            box-sizing: border-box;
+            border: 1px solid #34495e;
+            border-radius: 4px;
+            resize: vertical;
         }
 
         #map {
@@ -134,11 +153,14 @@
     
     <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
 
-    <!-- Painel Formal de Exibição -->
+    <!-- Painel Formal de Exibição com Edição -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO DE OPERAÇÕES:</strong>
-            <button id="btn-whatsapp">💬 ENVIAR WHATSAPP</button>
+            <div class="relatorio-acoes">
+                <button id="btn-editar">✏️ EDITAR</button>
+                <button id="btn-whatsapp">💬 WHATSAPP</button>
+            </div>
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
     </div>
@@ -182,6 +204,7 @@
         let ultimaLat = null;
         let ultimaLon = null;
         let textoRelatorioPronto = "";
+        let emModoEdicao = false;
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -190,6 +213,7 @@
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
+        const btnEditar = document.getElementById('btn-editar');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
@@ -287,7 +311,6 @@
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
             const novaCoord = [ultimaLat, ultimaLon];
 
-            // Adiciona IMEDIATAMENTE ao array para não perder o registro no JSON se fechar rápido
             const indexPonto = registrosTrajeto.length;
             registrosTrajeto.push({ 
                 hora: horaAtual, 
@@ -296,7 +319,6 @@
             });
             salvarEstadoLocal();
 
-            // Atualiza o nome da rua exato em segundo plano
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
                 if (registrosTrajeto[indexPonto]) {
@@ -314,18 +336,15 @@
             btnGravar.classList.add('gravando');
             btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
 
-            // Cronômetro do botão
             tempoGravacaoInterval = setInterval(() => {
                 segundosGravados++;
                 btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                 salvarEstadoLocal();
             }, 1000);
 
-            // Intervalo periódico escolhido pelo usuário (20 ou 30 min)
             const msIntervalo = intervaloRegistroMinutos * 60 * 1000;
             timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
 
-            // Monitor de localização em tempo real
             if (navigator.geolocation) {
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
@@ -462,6 +481,9 @@
                     registrosTrajeto = historico;
                     pontosDeMelhoria = pontosAtencao;
 
+                    emModoEdicao = false;
+                    btnEditar.textContent = "✏️ EDITAR";
+                    btnEditar.style.backgroundColor = "#d35400";
                     textoRelatorioVisivel.textContent = relatorioFormal;
                     painelRelatorio.style.display = "block";
                     salvarEstadoLocal();
@@ -503,7 +525,41 @@
             leitor.readAsText(arquivo);
         });
 
+        // Botão para alternar entre visualizar e editar o relatório
+        btnEditar.addEventListener('click', function() {
+            if (!emModoEdicao) {
+                // Entrar no modo de edição
+                emModoEdicao = true;
+                btnEditar.textContent = "💾 SALVAR";
+                btnEditar.style.backgroundColor = "#27ae60";
+                
+                textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
+            } else {
+                // Salvar alterações da edição
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+                falarTexto("Alterações salvas.");
+            }
+        });
+
         btnWhatsapp.addEventListener('click', function() {
+            // Se estiver editando no momento do clique, salva automaticamente antes de abrir o WhatsApp
+            if (emModoEdicao) {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+            }
+
             if (!textoRelatorioPronto) return;
             const urlWpp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`;
             window.open(urlWpp, '_blank');
@@ -532,13 +588,11 @@
                 isGravando = true;
                 segundosGravados = 0;
 
-                // Captura imediata e inclusão GARANTIDA no primeiro segundo
                 navigator.geolocation.getCurrentPosition((pos) => {
                     ultimaLat = pos.coords.latitude;
                     ultimaLon = pos.coords.longitude;
-                    registrarPontoAtualNoHistorico(); // Grava imediatamente no array no momento exato do clique!
+                    registrarPontoAtualNoHistorico();
                 }, (err) => {
-                    // Fallback se não obteve a tempo: usa a última coordenada salva se existir
                     if (ultimaLat !== null && ultimaLon !== null) {
                         registrarPontoAtualNoHistorico();
                     }
