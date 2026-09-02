@@ -181,9 +181,12 @@
                     let nomeFormatado = "Rua não identificada";
                     if (result.features && result.features.length > 0) {
                         const props = result.features[0].properties;
-                        const rua = props.street || props.name || props.formatted || "Via sem nome";
+                        const rua = props.street || props.name || "Via sem nome";
+                        const numero = props.housenumber ? `, ${props.housenumber}` : "";
                         const bairro = props.suburb || props.city || "";
-                        nomeFormatado = bairro ? `${rua} (${bairro})` : rua;
+                        
+                        let enderecoCompleto = `${rua}${numero}`;
+                        nomeFormatado = bairro ? `${enderecoCompleto} (${bairro})` : enderecoCompleto;
                     }
                     if (callback) callback(nomeFormatado);
                 })
@@ -311,13 +314,13 @@
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                 }, 1000);
 
-                // Grava no arquivo/histórico automaticamente a cada 1 minuto (60000 ms)
+                // Gravação automática a cada 1 minuto incluindo número da via
                 minutoRegistroInterval = setInterval(() => {
                     registrarPontoMinuto();
                 }, 60000);
 
-                instructionsDiv.innerHTML = "🔴 Iniciando rastreio (salvando a cada 1 minuto)...";
-                falarTexto("Gravação de rota iniciada. Salvamento a cada um minuto.");
+                instructionsDiv.innerHTML = "🔴 Iniciando rastreio com captura de número...";
+                falarTexto("Gravação iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -337,7 +340,6 @@
                         if (markerOrigem) map.removeLayer(markerOrigem);
                         markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
 
-                        // Grava o primeiro ponto imediatamente ao iniciar
                         if (registrosTrajeto.length === 0) {
                             obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
                                 ruaAtualNome = nomeRua;
