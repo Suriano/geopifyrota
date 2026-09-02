@@ -193,7 +193,7 @@
     <div id="controls">
         <button id="btn-localizacao">📍 LOCAL</button>
         
-        <!-- Substituído por input de texto com autocomplete de Destino -->
+        <!-- Campo de texto com autocomplete de Destino -->
         <div id="btn-voz-container">
             <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
             <div id="sugestoes-destino"></div>
@@ -244,6 +244,7 @@
         let origem = null;
         let markerOrigem = null;
         let markerDestino = null;
+        let routingLayer = null; // Camada para exibir a linha da rota calculada
 
         let isGravando = false;
         let watchId = null;
@@ -315,6 +316,58 @@
                 });
         }
 
+        // --- Função para Traçar a Rota até o Destino ---
+        function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
+            if (ultimaLat === null || ultimaLon === null) {
+                alert("Aguarde a obtenção da sua localização atual antes de traçar a rota.");
+                return;
+            }
+
+            // Usando a API de Routing do Geoapify
+            const urlRouting = `https://api.geoapify.com/v1/routing?waypoints=${ultimaLat},${ultimaLon}|${destinoLat},${destinoLon}&mode=drive&apiKey=${apiKey}`;
+
+            instructionsDiv.innerHTML = `🔄 CALCULANDO ROTA...`;
+
+            fetch(urlRouting)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        const routeFeature = data.features[0];
+                        
+                        if (routingLayer) {
+                            map.removeLayer(routingLayer);
+                        }
+
+                        // Adiciona a linha da rota ao mapa
+                        routingLayer = L.geoJSON(routeFeature, {
+                            style: {
+                                color: '#3498db',
+                                weight: 6,
+                                opacity: 0.8
+                            }
+                        }).addTo(map);
+
+                        // Ajusta o zoom do mapa para abranger toda a rota
+                        map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+
+                        // Adiciona ou atualiza o marcador no destino
+                        if (markerDestino) map.removeLayer(markerDestino);
+                        markerDestino = L.marker([destinoLat, destinoLon]).addTo(map)
+                            .bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
+
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA ATÉ:</b> ${enderecoFormatado.toUpperCase()}`;
+                        falarTexto("Rota calculada com sucesso.");
+                    } else {
+                        alert("Não foi possível encontrar uma rota para o destino selecionado.");
+                        instructionsDiv.innerHTML = `⚠️ FALHA AO CALCULAR ROTA.`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro na API de Roteamento:", err);
+                    alert("Erro de conexão ao calcular a rota.");
+                });
+        }
+
         // --- Lógica de Filtro e Autocompletar de Destino ---
         let timeoutAutocomplete = null;
         inputDestino.addEventListener('input', function() {
@@ -346,14 +399,11 @@
                                     inputDestino.value = props.formatted;
                                     sugestoesDestino.style.display = 'none';
                                     
-                                    const coords = [feature.geometry.coordinates[1], feature.geometry.coordinates[0]];
-                                    map.setView(coords, 17);
-                                    
-                                    if (markerDestino) map.removeLayer(markerDestino);
-                                    markerDestino = L.marker(coords).addTo(map)
-                                        .bindPopup(`<b>DESTINO:</b><br>${props.formatted}`).openPopup();
-                                    
-                                    instructionsDiv.innerHTML = `🎯 <b>DESTINO DEFINIDO:</b> ${props.formatted.toUpperCase()}`;
+                                    const destLat = feature.geometry.coordinates[1];
+                                    const destLon = feature.geometry.coordinates[0];
+
+                                    // Chama a função para traçar a rota no mapa
+                                    calcularESobrescreverRota(destLat, destLon, props.formatted);
                                 });
 
                                 sugestoesDestino.appendChild(div);
@@ -546,6 +596,10 @@
                 btnGravar.classList.remove('gravando');
 
                 if (trackLayer) map.removeLayer(trackLayer);
+                if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+                if (markerDestino) { map.removeLayer(markerDestino); markerDestino = null; }
+                inputDestino.value = '';
+
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
                 marcadoresMelhoriaLayers = [];
 
