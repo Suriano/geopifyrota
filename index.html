@@ -113,7 +113,6 @@
     <script>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
-        // Inicializa o mapa sem coordenadas fixas; ajusta ao usuário via geolocalização.
         const map = L.map('map', {
             rotate: true,
             touchRotate: true,
@@ -138,6 +137,7 @@
         let isGravando = false;
         let watchId = null;
         let tempoGravacaoInterval = null;
+        let minutoRegistroInterval = null;
         let segundosGravados = 0;
 
         let registrosTrajeto = [];
@@ -145,7 +145,8 @@
         let trackLayer = null;
         let marcadoresMelhoriaLayers = [];
         let ruaAtualNome = "Aguardando...";
-        let ultimaChamadaRua = 0;
+        let ultimaLat = null;
+        let ultimaLon = null;
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -273,6 +274,23 @@
             return hStr + mStr + sStr;
         }
 
+        function registrarPontoMinuto() {
+            if (!isGravando || ultimaLat === null || ultimaLon === null) return;
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            const novaCoord = [ultimaLat, ultimaLon];
+
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                ruaAtualNome = nomeRua;
+                registrosTrajeto.push({
+                    hora: horaAtual,
+                    rua: ruaAtualNome,
+                    coordenadas: novaCoord
+                });
+                atualizarLinhaTrajeto();
+                instructionsDiv.innerHTML = `⏱️ Ponto gravado no minuto (${horaAtual}): <b>${ruaAtualNome}</b>`;
+            });
+        }
+
         btnGravar.addEventListener('click', function() {
             if (!isGravando) {
                 if (!navigator.geolocation) {
@@ -293,8 +311,13 @@
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                 }, 1000);
 
-                instructionsDiv.innerHTML = "🔴 Iniciando rastreio detalhado...";
-                falarTexto("Gravação de rota iniciada.");
+                // Grava no arquivo/histórico automaticamente a cada 1 minuto (60000 ms)
+                minutoRegistroInterval = setInterval(() => {
+                    registrarPontoMinuto();
+                }, 60000);
+
+                instructionsDiv.innerHTML = "🔴 Iniciando rastreio (salvando a cada 1 minuto)...";
+                falarTexto("Gravação de rota iniciada. Salvamento a cada um minuto.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -304,6 +327,8 @@
                     (position) => {
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
+                        ultimaLat = lat;
+                        ultimaLon = lon;
                         const novaCoord = [lat, lon];
                         const horaAtual = new Date().toLocaleTimeString('pt-BR');
 
@@ -312,28 +337,17 @@
                         if (markerOrigem) map.removeLayer(markerOrigem);
                         markerOrigem = L.marker(novaCoord, { icon: criarIconeMoto() }).addTo(map);
 
-                        const agora = Date.now();
-                        if (agora - ultimaChamadaRua > 5000) {
-                            ultimaChamadaRua = agora;
+                        // Grava o primeiro ponto imediatamente ao iniciar
+                        if (registrosTrajeto.length === 0) {
                             obterNomeRuaPorCoord(lat, lon, (nomeRua) => {
                                 ruaAtualNome = nomeRua;
-                                instructionsDiv.innerHTML = `🏍️ <b>${ruaAtualNome}</b> (${horaAtual})`;
-
                                 registrosTrajeto.push({
                                     hora: horaAtual,
                                     rua: ruaAtualNome,
                                     coordenadas: novaCoord
                                 });
-
                                 atualizarLinhaTrajeto();
                             });
-                        } else {
-                            registrosTrajeto.push({
-                                hora: horaAtual,
-                                rua: ruaAtualNome,
-                                coordenadas: novaCoord
-                            });
-                            atualizarLinhaTrajeto();
                         }
                     },
                     (error) => { console.error("Erro GPS:", error); },
@@ -344,6 +358,7 @@
                 isGravando = false;
                 navigator.geolocation.clearWatch(watchId);
                 clearInterval(tempoGravacaoInterval);
+                clearInterval(minutoRegistroInterval);
                 
                 btnGravar.textContent = "🔴 Gravar Rota";
                 btnGravar.classList.remove('gravando');
