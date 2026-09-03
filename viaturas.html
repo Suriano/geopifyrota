@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -230,15 +229,14 @@
     <script>
         // --- CONFIGURAÇÃO DO FIREBASE ---
         const firebaseConfig = {
-        apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
-        authDomain: "mymaps-dca38.firebaseapp.com",
-        projectId: "mymaps-dca38",
-        storageBucket: "mymaps-dca38.firebasestorage.app",
-        messagingSenderId: "673104844104",
-        appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
-        measurementId: "G-9CE457DN5W"
+            apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
+            authDomain: "mymaps-dca38.firebaseapp.com",
+            projectId: "mymaps-dca38",
+            storageBucket: "mymaps-dca38.firebasestorage.app",
+            messagingSenderId: "673104844104",
+            appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
+            measurementId: "G-9CE457DN5W"
         };
-
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
@@ -361,16 +359,38 @@
         function escutarOutrasViaturas() {
             db.ref('viaturas_ativas').on('value', (snapshot) => {
                 const dados = snapshot.val();
-                if (!dados) return;
+                
+                // Se o banco estiver vazio, limpa tudo
+                if (!dados) {
+                    Object.keys(marcadoresOutrasViaturas).forEach((key) => {
+                        map.removeLayer(marcadoresOutrasViaturas[key]);
+                        delete marcadoresOutrasViaturas[key];
+                    });
+                    return;
+                }
 
-                Object.keys(dados).forEach((key) => {
+                const chavesAtuaisNoBanco = Object.keys(dados);
+
+                // Remove do mapa viaturas que sumiram/desconectaram
+                Object.keys(marcadoresOutrasViaturas).forEach((key) => {
+                    if (!dados[key]) {
+                        map.removeLayer(marcadoresOutrasViaturas[key]);
+                        delete marcadoresOutrasViaturas[key];
+                    }
+                });
+
+                // Atualiza ou adiciona as viaturas ativas
+                chavesAtuaisNoBanco.forEach((key) => {
                     if (key === idViatura) return; // Ignora a si mesmo
 
                     const outra = dados[key];
+                    if (!outra || typeof outra.lat === 'undefined' || typeof outra.lon === 'undefined') return;
+
                     const coords = [outra.lat, outra.lon];
 
                     if (marcadoresOutrasViaturas[key]) {
                         marcadoresOutrasViaturas[key].setLatLng(coords);
+                        marcadoresOutrasViaturas[key].setPopupContent(`<b>VIATURA:</b> ${key}<br>Última att: ${outra.ultimaAtualizacao}`);
                     } else {
                         marcadoresOutrasViaturas[key] = L.marker(coords, { icon: criarIconeOutraViatura() })
                             .addTo(map)
@@ -868,7 +888,7 @@
 
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
-            if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
+            if (registrosTageto.length === 0 && registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
             const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
             const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
             if (nota !== null) {
@@ -878,7 +898,7 @@
 
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
-                falarTexto("Ponto marcado.");
+                falarTexto("Pontoမှတ်ado.");
             }
         });
 
@@ -886,4 +906,3 @@
     </script>
 </body>
 </html>
-
