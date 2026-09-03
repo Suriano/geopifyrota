@@ -1,0 +1,916 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS RPM & QTH Patrulhamento</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
+
+    <!-- Firebase SDK Compat -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            touch-action: manipulation;
+        }
+        #header {
+            padding: 10px;
+            background-color: #2c3e50;
+            color: white;
+            text-align: center;
+        }
+        #controls {
+            padding: 8px;
+            background-color: #f1f2f6;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #dcdde1;
+            align-items: center;
+        }
+        button, .autocomplete-container input {
+            background-color: #34495e;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            font-size: 13px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            box-sizing: border-box;
+        }
+        button:hover {
+            background-color: #2c3e50;
+        }
+        
+        #btn-voz-container {
+            position: relative;
+            display: inline-block;
+        }
+        #input-destino {
+            background-color: #e67e22;
+            color: white;
+            width: 160px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 5px;
+            outline: none;
+        }
+        #input-destino::placeholder {
+            color: white;
+            opacity: 0.9;
+        }
+        #sugestoes-destino {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 0 0 5px 5px;
+            z-index: 1000;
+            max-height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            display: none;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+        }
+        .sugestao-item {
+            padding: 8px 10px;
+            font-size: 12px;
+            color: #333;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            font-weight: normal;
+            text-transform: uppercase;
+        }
+        .sugestao-item:hover {
+            background-color: #f1f2f6;
+        }
+
+        #btn-gravar { background-color: #c0392b; min-width: 140px; }
+        #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
+        #btn-marcar { background-color: #f39c12; }
+        #btn-importar { background-color: #2980b9; }
+        #btn-limpar { background-color: #7f8c8d; }
+
+        @keyframes pulsar {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        #instructions {
+            padding: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: #2c3e50;
+            background-color: #ecf0f1;
+            border-bottom: 1px solid #bdc3c7;
+            font-size: 14px;
+        }
+
+        #painel-relatorio {
+            display: none;
+            background: #ffffff;
+            border-bottom: 2px solid #2c3e50;
+            padding: 12px;
+            max-height: 250px;
+            overflow-y: auto;
+            font-size: 12px;
+            box-shadow: inset 0 4px 6px -4px rgba(0,0,0,0.1);
+        }
+        .relatorio-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 6px;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .relatorio-acoes {
+            display: flex;
+            gap: 5px;
+        }
+        #btn-whatsapp {
+            background-color: #25d366;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+        #btn-editar {
+            background-color: #d35400;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+        .relatorio-conteudo {
+            white-space: pre-wrap;
+            color: #222;
+            font-family: Arial, sans-serif;
+            line-height: 1.5;
+            text-transform: uppercase;
+        }
+        #textarea-edicao {
+            width: 100%;
+            height: 140px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            text-transform: uppercase;
+            padding: 6px;
+            box-sizing: border-box;
+            border: 1px solid #34495e;
+            border-radius: 4px;
+            resize: vertical;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100vh - 190px);
+            touch-action: none; 
+        }
+        .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
+        <small style="color: #bdc3c7;">ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
+    </div>
+
+    <div id="controls">
+        <button id="btn-localizacao">📍 LOCAL</button>
+        
+        <div id="btn-voz-container">
+            <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
+            <div id="sugestoes-destino"></div>
+        </div>
+
+        <button id="btn-gravar">🔴 GRAVAR ROTA</button>
+        <button id="btn-marcar">⭐ MARCAR PONTO</button>
+        <button id="btn-importar">📂 ABRIR</button>
+        <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
+        <input type="file" id="input-json" style="display: none;" />
+    </div>
+    
+    <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
+
+    <div id="painel-relatorio">
+        <div class="relatorio-header">
+            <strong>HISTÓRICO DE OPERAÇÕES:</strong>
+            <div class="relatorio-acoes">
+                <button id="btn-editar">✏️ EDITAR</button>
+                <button id="btn-whatsapp">💬 WHATSAPP</button>
+            </div>
+        </div>
+        <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
+
+    <script>
+        // --- CONFIGURAÇÃO DO FIREBASE ---
+        const firebaseConfig = {
+  apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
+  authDomain: "mymaps-dca38.firebaseapp.com",
+  projectId: "mymaps-dca38",
+  storageBucket: "mymaps-dca38.firebasestorage.app",
+  messagingSenderId: "673104844104",
+  appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
+  measurementId: "G-9CE457DN5W"
+};
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Identificação única desta viatura/usuário
+        let idViatura = prompt("Digite o indicativo da sua viatura (Ex: US-01):");
+        if (!idViatura || idViatura.trim() === "") {
+            idViatura = "VIATURA_" + Math.floor(Math.random() * 1000);
+        }
+        idViatura = idViatura.toUpperCase();
+
+        const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
+
+        const map = L.map('map', {
+            rotate: true,
+            touchRotate: true,
+            rotateControl: { position: "topright", behavior: "reset" }
+        });
+
+        L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
+            attribution: 'Powered by Geoapify | © OpenStreetMap contributors',
+            maxZoom: 20,
+            id: 'osm-carto'
+        }).addTo(map);
+
+        let origem = null;
+        let markerOrigem = null;
+        let markerDestino = null;
+        let routingLayer = null;
+
+        let isGravando = false;
+        let watchId = null;
+        let tempoGravacaoInterval = null;
+        let intervaloRegistroMinutos = 20;
+        let timerRegistroInterval = null;
+        let segundosGravados = 0;
+
+        let registrosTrajeto = [];
+        let pontosDeMelhoria = [];
+        let trackLayer = null;
+        let marcadoresMelhoriaLayers = [];
+        let marcadoresOutrasViaturas = {};
+        let ruaAtualNome = "AGUARDANDO...";
+        let ultimaLat = null;
+        let ultimaLon = null;
+        let textoRelatorioPronto = "";
+        let emModoEdicao = false;
+
+        const instructionsDiv = document.getElementById('instructions');
+        const btnLocalizacao = document.getElementById('btn-localizacao');
+        const btnGravar = document.getElementById('btn-gravar');
+        const btnMarcar = document.getElementById('btn-marcar');
+        const btnImportar = document.getElementById('btn-importar');
+        const btnLimpar = document.getElementById('btn-limpar');
+        const btnWhatsapp = document.getElementById('btn-whatsapp');
+        const btnEditar = document.getElementById('btn-editar');
+        const inputJson = document.getElementById('input-json');
+        const painelRelatorio = document.getElementById('painel-relatorio');
+        const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
+        
+        const inputDestino = document.getElementById('input-destino');
+        const sugestoesDestino = document.getElementById('sugestoes-destino');
+
+        function criarIconeViatura() {
+            return L.divIcon({
+                className: 'viatura-icon',
+                html: '🚔',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+        }
+
+        function criarIconeOutraViatura() {
+            return L.divIcon({
+                className: 'viatura-icon',
+                html: '🚙',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            });
+        }
+
+        function falarTexto(texto) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'pt-BR';
+            utterance.rate = 1.05;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function obterNomeRuaPorCoord(lat, lon, callback) {
+            const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&apiKey=${apiKey}&lang=pt`;
+            fetch(url)
+                .then(res => res.json())
+                .then(result => {
+                    let nomeFormatado = "VIA NÃO IDENTIFICADA";
+                    if (result.features && result.features.length > 0) {
+                        const props = result.features[0].properties;
+                        const rua = props.street || props.name || "VIA SEM NOME";
+                        const numero = props.housenumber ? `, ${props.housenumber}` : "";
+                        const bairro = props.suburb || props.city || "";
+                        nomeFormatado = bairro ? `${rua}${numero} (${bairro})` : `${rua}${numero}`;
+                    }
+                    if (callback) callback(nomeFormatado.toUpperCase());
+                })
+                .catch(err => {
+                    if (callback) callback("VIA NÃO IDENTIFICADA");
+                });
+        }
+
+        // --- Sincronização em Tempo Real com Firebase ---
+        function enviarPosicaoFirebase(lat, lon) {
+            db.ref('viaturas_ativas/' + idViatura).set({
+                lat: lat,
+                lon: lon,
+                ultimaAtualizacao: new Date().toLocaleTimeString('pt-BR')
+            });
+        }
+
+        function escutarOutrasViaturas() {
+            db.ref('viaturas_ativas').on('value', (snapshot) => {
+                const dados = snapshot.val();
+                if (!dados) return;
+
+                Object.keys(dados).forEach((key) => {
+                    if (key === idViatura) return; // Ignora a si mesmo
+
+                    const outra = dados[key];
+                    const coords = [outra.lat, outra.lon];
+
+                    if (marcadoresOutrasViaturas[key]) {
+                        marcadoresOutrasViaturas[key].setLatLng(coords);
+                    } else {
+                        marcadoresOutrasViaturas[key] = L.marker(coords, { icon: criarIconeOutraViatura() })
+                            .addTo(map)
+                            .bindPopup(`<b>VIATURA:</b> ${key}<br>Última att: ${outra.ultimaAtualizacao}`);
+                    }
+                });
+            });
+        }
+
+        function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
+            if (ultimaLat === null || ultimaLon === null) {
+                alert("Aguarde a obtenção da sua localização atual antes de traçar a rota.");
+                return;
+            }
+
+            const urlRouting = `https://api.geoapify.com/v1/routing?waypoints=${ultimaLat},${ultimaLon}|${destinoLat},${destinoLon}&mode=drive&apiKey=${apiKey}`;
+            instructionsDiv.innerHTML = `🔄 CALCULANDO ROTA...`;
+
+            fetch(urlRouting)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        const routeFeature = data.features[0];
+                        
+                        if (routingLayer) map.removeLayer(routingLayer);
+
+                        routingLayer = L.geoJSON(routeFeature, {
+                            style: { color: '#3498db', weight: 6, opacity: 0.8 }
+                        }).addTo(map);
+
+                        map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+
+                        if (markerDestino) map.removeLayer(markerDestino);
+                        markerDestino = L.marker([destinoLat, destinoLon]).addTo(map)
+                            .bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
+
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA ATÉ:</b> ${enderecoFormatado.toUpperCase()}`;
+                        falarTexto("Rota calculada com sucesso.");
+                    } else {
+                        alert("Não foi possível encontrar uma rota para o destino selecionado.");
+                        instructionsDiv.innerHTML = `⚠️ FALHA AO CALCULAR ROTA.`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro na API de Roteamento:", err);
+                    alert("Erro de conexão ao calcular a rota.");
+                });
+        }
+
+        let timeoutAutocomplete = null;
+        inputDestino.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(timeoutAutocomplete);
+
+            if (query.length < 3) {
+                sugestoesDestino.style.display = 'none';
+                sugestoesDestino.innerHTML = '';
+                return;
+            }
+
+            timeoutAutocomplete = setTimeout(() => {
+                let biasParam = ultimaLat && ultimaLon ? `&bias=proximity:${ultimaLon},${ultimaLat}` : '';
+                const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=5&lang=pt${biasParam}&apiKey=${apiKey}`;
+                
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        sugestoesDestino.innerHTML = '';
+                        if (data.features && data.features.length > 0) {
+                            data.features.forEach(feature => {
+                                const props = feature.properties;
+                                const div = document.createElement('div');
+                                div.className = 'sugestao-item';
+                                div.textContent = props.formatted;
+                                
+                                div.addEventListener('click', () => {
+                                    inputDestino.value = props.formatted;
+                                    sugestoesDestino.style.display = 'none';
+                                    
+                                    const destLat = feature.geometry.coordinates[1];
+                                    const destLon = feature.geometry.coordinates[0];
+
+                                    calcularESobrescreverRota(destLat, destLon, props.formatted);
+                                });
+
+                                sugestoesDestino.appendChild(div);
+                            });
+                            sugestoesDestino.style.display = 'block';
+                        } else {
+                            sugestoesDestino.style.display = 'none';
+                        }
+                    })
+                    .catch(err => console.error("Erro no autocompletar:", err));
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('btn-voz-container').contains(e.target)) {
+                sugestoesDestino.style.display = 'none';
+            }
+        });
+
+        async function atualizarContadorGlobal() {
+            try {
+                const res = await fetch('https://api.countapi.xyz/hit/gps-rpm-patrulhamento/visitas');
+                const data = await res.json();
+                if (data && typeof data.value !== 'undefined') {
+                    document.getElementById('contador-visitas').textContent = data.value;
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                let locais = parseInt(localStorage.getItem('gps_rpm_acessos_fallback') || '1');
+                document.getElementById('contador-visitas').textContent = locais;
+                localStorage.setItem('gps_rpm_acessos_fallback', locais + 1);
+            }
+        }
+
+        function centralizarNaMinhaLocalizacao() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition((position) => {
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                origem = [ultimaLat, ultimaLon];
+                map.setView(origem, 16);
+                
+                enviarPosicaoFirebase(ultimaLat, ultimaLon);
+
+                obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                    ruaAtualNome = nomeRua;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
+                        .bindPopup(`<b>${idViatura} (LOCALIZAÇÃO ATUAL)</b><br>${ruaAtualNome}`).openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>ORIGEM (${idViatura}):</b> ${ruaAtualNome}`;
+                });
+            }, () => {
+                map.setView([-23.5505, -46.6333], 13);
+            }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+
+        function salvarEstadoLocal() {
+            const estado = {
+                registrosTrajeto,
+                pontosDeMelhoria,
+                textoRelatorioPronto,
+                temRelatorioVisivel: painelRelatorio.style.display === "block",
+                isGravando,
+                segundosGravados,
+                intervaloRegistroMinutos
+            };
+            localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
+        function registrarPontoAtualNoHistorico() {
+            if (!isGravando || ultimaLat === null || ultimaLon === null) return;
+            
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            const novaCoord = [ultimaLat, ultimaLon];
+
+            const indexPonto = registrosTrajeto.length;
+            registrosTrajeto.push({ 
+                hora: horaAtual, 
+                rua: ruaAtualNome !== "AGUARDANDO..." ? ruaAtualNome : "OBTENDO LOCAL...", 
+                coordenadas: novaCoord 
+            });
+            salvarEstadoLocal();
+
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                ruaAtualNome = nomeRua;
+                if (registrosTrajeto[indexPonto]) {
+                    registrosTrajeto[indexPonto].rua = ruaAtualNome;
+                }
+                salvarEstadoLocal();
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
+                instructionsDiv.innerHTML = `⏱️ PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
+            });
+        }
+
+        function iniciarIntervalosGravacao() {
+            btnGravar.classList.add('gravando');
+            btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+
+            tempoGravacaoInterval = setInterval(() => {
+                segundosGravados++;
+                btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                salvarEstadoLocal();
+            }, 1000);
+
+            const msIntervalo = intervaloRegistroMinutos * 60 * 1000;
+            timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
+
+            if (navigator.geolocation) {
+                watchId = navigator.geolocation.watchPosition((position) => {
+                    ultimaLat = position.coords.latitude;
+                    ultimaLon = position.coords.longitude;
+                    const novaCoord = [ultimaLat, ultimaLon];
+                    
+                    enviarPosicaoFirebase(ultimaLat, ultimaLon);
+
+                    map.setView(novaCoord, 16);
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
+                }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+            }
+        }
+
+        function restaurarEstadoLocal() {
+            const salvo = localStorage.getItem('gps_rpm_estado_atual');
+            if (!salvo) return;
+
+            try {
+                const estado = JSON.parse(salvo);
+                registrosTrajeto = estado.registrosTrajeto || [];
+                pontosDeMelhoria = estado.pontosDeMelhoria || [];
+                textoRelatorioPronto = estado.textoRelatorioPronto || "";
+                isGravando = estado.isGravando || false;
+                segundosGravados = estado.segundosGravados || 0;
+                intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 20;
+
+                if (estado.temRelatorioVisivel && textoRelatorioPronto) {
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                    painelRelatorio.style.display = "block";
+                }
+
+                const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
+                if (coordsValidas.length > 0) {
+                    trackLayer = L.polyline(coordsValidas, { color: isGravando ? '#c0392b' : '#2980b9', weight: 5 }).addTo(map);
+                    map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                }
+
+                pontosDeMelhoria.forEach(pm => {
+                    if (pm.coordenadas) {
+                        const m = L.marker(pm.coordenadas).addTo(map)
+                            .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                        marcadoresMelhoriaLayers.push(m);
+                    }
+                });
+
+                if (isGravando) {
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO ANTERIOR...";
+                    iniciarIntervalosGravacao();
+                } else if (registrosTrajeto.length > 0) {
+                    instructionsDiv.innerHTML = `📂 DADOS ANTERIORES RECUPERADOS COM SUCESSO.`;
+                }
+            } catch (e) {
+                console.error("Erro ao recuperar estado salvo", e);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            atualizarContadorGlobal();
+            centralizarNaMinhaLocalizacao();
+            restaurarEstadoLocal();
+            escutarOutrasViaturas();
+        });
+
+        // Limpeza no Firebase ao fechar ou sair da página
+        window.addEventListener('beforeunload', () => {
+            db.ref('viaturas_ativas/' + idViatura).remove();
+        });
+
+        btnImportar.addEventListener('click', function() {
+            inputJson.click();
+        });
+
+        btnLimpar.addEventListener('click', function() {
+            if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
+                if (isGravando) {
+                    navigator.geolocation.clearWatch(watchId);
+                    clearInterval(tempoGravacaoInterval);
+                    clearInterval(timerRegistroInterval);
+                }
+                localStorage.removeItem('gps_rpm_estado_atual');
+                isGravando = false;
+                registrosTrajeto = [];
+                pontosDeMelhoria = [];
+                textoRelatorioPronto = "";
+                textoRelatorioVisivel.textContent = "";
+                painelRelatorio.style.display = "none";
+                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.classList.remove('gravando');
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+                if (markerDestino) { map.removeLayer(markerDestino); markerDestino = null; }
+                inputDestino.value = '';
+
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
+                instructionsDiv.innerHTML = "🧹 DADOS LIMPOS. PRONTO PARA NOVO REGISTRO.";
+                falarTexto("Dados limpos.");
+            }
+        });
+
+        inputJson.addEventListener('change', function(event) {
+            const arquivo = event.target.files[0];
+            if (!arquivo) return;
+
+            const leitor = new FileReader();
+            leitor.onload = function(e) {
+                try {
+                    const dados = JSON.parse(e.target.result);
+                    
+                    const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
+                    const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
+
+                    let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL (${idViatura})\n`;
+                    relatorioFormal += `DATA: ${dados.dataInicio || dados.data || 'N/A'} | TEMPO TOTAL: ${dados.tempoTotal || 'N/A'}\n\n`;
+                    relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
+
+                    let contadorItem = 1;
+
+                    if (historico.length > 0) {
+                        historico.forEach((ponto) => {
+                            const hora = ponto.hora || 'N/A';
+                            const rua = (ponto.rua || 'N/A').toUpperCase();
+                            relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
+                            contadorItem++;
+                        });
+                    }
+
+                    if (pontosAtencao.length > 0) {
+                        relatorioFormal += `\nALTERAÇÕES DOS MEMBROS DA US (PONTOS MARCADOS):\n`;
+                        pontosAtencao.forEach((pm) => {
+                            const hora = pm.hora || 'N/A';
+                            const rua = (pm.rua || 'N/A').toUpperCase();
+                            const comentario = (pm.comentario || 'OCORRÊNCIA REGISTRADA').toUpperCase();
+                            relatorioFormal += `• ÀS ${hora} - ${rua} - ${comentario}.\n`;
+                        });
+                    }
+
+                    if (historico.length === 0 && pontosAtencao.length === 0) {
+                        relatorioFormal += `1. NENHUM REGISTRO INFORMADO NESTE ARQUIVO.\n`;
+                    }
+
+                    textoRelatorioPronto = relatorioFormal;
+                    registrosTrajeto = historico;
+                    pontosDeMelhoria = pontosAtencao;
+
+                    emModoEdicao = false;
+                    btnEditar.textContent = "✏️ EDITAR";
+                    btnEditar.style.backgroundColor = "#d35400";
+                    textoRelatorioVisivel.textContent = relatorioFormal;
+                    painelRelatorio.style.display = "block";
+                    salvarEstadoLocal();
+
+                    instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
+                    falarTexto("Relatório carregado com sucesso.");
+
+                    if (trackLayer) map.removeLayer(trackLayer);
+                    marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                    marcadoresMelhoriaLayers = [];
+
+                    const coordsValidas = [];
+                    historico.forEach(item => {
+                        if (item.coordenadas && Array.isArray(item.coordenadas)) {
+                            coordsValidas.push(item.coordenadas);
+                        }
+                    });
+
+                    if (coordsValidas.length > 0) {
+                        trackLayer = L.polyline(coordsValidas, { color: '#2980b9', weight: 5 }).addTo(map);
+                        map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                    }
+
+                    pontosAtencao.forEach(pm => {
+                        if (pm.coordenadas) {
+                            const m = L.marker(pm.coordenadas).addTo(map)
+                                .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                            marcadoresMelhoriaLayers.push(m);
+                        }
+                    });
+
+                } catch (err) {
+                    alert("ERRO AO LER O ARQUIVO JSON.");
+                    console.error(err);
+                } finally {
+                    inputJson.value = '';
+                }
+            };
+            leitor.readAsText(arquivo);
+        });
+
+        btnEditar.addEventListener('click', function() {
+            if (!emModoEdicao) {
+                emModoEdicao = true;
+                btnEditar.textContent = "💾 SALVAR";
+                btnEditar.style.backgroundColor = "#27ae60";
+                
+                textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
+            } else {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+                falarTexto("Alterações salvas.");
+            }
+        });
+
+        btnWhatsapp.addEventListener('click', function() {
+            if (emModoEdicao) {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+            }
+
+            if (!textoRelatorioPronto) return;
+            const urlWpp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`;
+            window.open(urlWpp, '_blank');
+        });
+
+        function formatarTempo(segundos) {
+            const h = Math.floor(segundos / 3600);
+            const m = Math.floor((segundos % 3600) / 60);
+            const s = segundos % 60;
+            return (h > 0 ? String(h).padStart(2, '0') + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        btnGravar.addEventListener('click', function() {
+            if (!isGravando) {
+                if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
+                
+                let escolha = prompt("Escolha o intervalo de registro automático:\n1 - De 20 em 20 minutos\n2 - De 30 em 30 minutos", "1");
+                
+                if (escolha === null) return;
+
+                if (escolha === "2") {
+                    intervaloRegistroMinutos = 30;
+                } else {
+                    intervaloRegistroMinutos = 20;
+                }
+
+                registrosTrajeto = [];
+                pontosDeMelhoria = [];
+                isGravando = true;
+                segundosGravados = 0;
+
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    ultimaLat = pos.coords.latitude;
+                    ultimaLon = pos.coords.longitude;
+                    registrarPontoAtualNoHistorico();
+                }, (err) => {
+                    if (ultimaLat !== null && ultimaLon !== null) {
+                        registrarPontoAtualNoHistorico();
+                    }
+                }, { enableHighAccuracy: true, timeout: 5000 });
+
+                iniciarIntervalosGravacao();
+                falarTexto("Gravação iniciada.");
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
+            } else {
+                isGravando = false;
+                navigator.geolocation.clearWatch(watchId);
+                clearInterval(tempoGravacaoInterval);
+                clearInterval(timerRegistroInterval);
+                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.classList.remove('gravando');
+                instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
+                falarTexto("Gravação encerrada.");
+
+                const dadosRota = {
+                    indicativoViatura: idViatura,
+                    dataInicio: new Date().toLocaleDateString('pt-BR'),
+                    tempoTotal: formatarTempo(segundosGravados),
+                    historicoRuasETempo: registrosTrajeto,
+                    pontosMarcados: pontosDeMelhoria
+                };
+
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dadosRota, null, 2));
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", `${idViatura}_trajeto_${new Date().toISOString().slice(0,10)}.json`);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+
+                localStorage.removeItem('gps_rpm_estado_atual');
+            }
+        });
+
+        btnMarcar.addEventListener('click', function() {
+            if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
+            if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
+            const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
+            const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
+            if (nota !== null) {
+                const notaUpper = nota.toUpperCase();
+                pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
+                salvarEstadoLocal();
+
+                const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
+                marcadoresMelhoriaLayers.push(m);
+                falarTexto("Ponto marcado.");
+            }
+        });
+
+        btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
+  authDomain: "mymaps-dca38.firebaseapp.com",
+  projectId: "mymaps-dca38",
+  storageBucket: "mymaps-dca38.firebasestorage.app",
+  messagingSenderId: "673104844104",
+  appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
+  measurementId: "G-9CE457DN5W"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
