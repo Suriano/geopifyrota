@@ -389,9 +389,8 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Função auxiliar para calcular distância em metros entre duas coordenadas (Fórmula de Haversine)
         function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; // Raio da Terra em metros
+            const R = 6371e3;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -569,7 +568,6 @@
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
         }
 
-        // Lógica de salvamento baseada em distância e alteração de endereço/coordenada
         function avaliarRegistroPorDistanciaOuEndereco() {
             if (!isGravando || ultimaLat === null || ultimaLon === null) return;
 
@@ -582,15 +580,13 @@
                 let deveSalvar = false;
 
                 if (!ultimaCoordenadaSalva) {
-                    deveSalvar = true; // Primeiro ponto do trajeto
+                    deveSalvar = true;
                 } else {
                     const distancia = calcularDistanciaMetros(
                         ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1],
                         ultimaLat, ultimaLon
                     );
 
-                    // Condição 1: Atingiu a distância mínima configurada (ex: 50 metros)
-                    // Condição 2: Mudou de rua/endereço em relação ao último ponto registrado
                     if (distancia >= distanciaMinimaMetros || (ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA")) {
                         deveSalvar = true;
                     }
@@ -614,34 +610,28 @@
             });
         }
 
-        function iniciarRastreamentoDistancia() {
-            btnGravar.classList.add('gravando');
-            btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+        // Função global de rastreamento contínuo (roda sempre, atualizando o mapa e o ícone)
+        function iniciarRastreamentoGlobal() {
+            if (!navigator.geolocation) return;
 
-            tempoGravacaoInterval = setInterval(() => {
-                segundosGravados++;
-                btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
-                salvarEstadoLocal();
-            }, 1000);
+            watchId = navigator.geolocation.watchPosition((position) => {
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                const novaCoord = [ultimaLat, ultimaLon];
+                
+                // Sempre atualiza o mapa e move o ícone da viatura em tempo real
+                map.setView(novaCoord, map.getZoom());
+                if (markerOrigem) map.removeLayer(markerOrigem);
+                markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
 
-            if (navigator.geolocation) {
-                // O watchPosition monitora a mudança de posição do GPS em tempo real
-                watchId = navigator.geolocation.watchPosition((position) => {
-                    ultimaLat = position.coords.latitude;
-                    ultimaLon = position.coords.longitude;
-                    const novaCoord = [ultimaLat, ultimaLon];
-                    
-                    map.setView(novaCoord, 16);
-                    if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
-
-                    // Executa a verificação baseada em distância / alteração de endereço
+                // Se a gravação estiver ativa, avalia a distância e grava o ponto na rota
+                if (isGravando) {
                     avaliarRegistroPorDistanciaOuEndereco();
+                }
 
-                }, (err) => {
-                    console.error("Erro de GPS no watchPosition:", err);
-                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
-            }
+            }, (err) => {
+                console.error("Erro de GPS no watchPosition:", err);
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
         }
 
         function restaurarEstadoLocal() {
@@ -665,7 +655,6 @@
                 if (coordsValidas.length > 0) {
                     trackLayer = L.polyline(coordsValidas, { color: isGravando ? '#c0392b' : '#2980b9', weight: 5 }).addTo(map);
                     map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
-                    // Restabelece a última coordenada salva para continuar a contagem de distância de onde parou
                     ultimaCoordenadaSalva = coordsValidas[coordsValidas.length - 1];
                 }
 
@@ -678,10 +667,13 @@
                 });
 
                 if (isGravando) {
-                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO POR DISTÂNCIA...";
-                    iniciarRastreamentoDistancia();
-                } else if (registrosTrajeto.length > 0) {
-                    instructionsDiv.innerHTML = `📂 DADOS ANTERIORES RECUPERADOS COM SUCESSO.`;
+                    btnGravar.classList.add('gravando');
+                    tempoGravacaoInterval = setInterval(() => {
+                        segundosGravados++;
+                        btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                        salvarEstadoLocal();
+                    }, 1000);
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO DE ROTA...";
                 }
             } catch (e) {
                 console.error("Erro ao recuperar estado salvo", e);
@@ -692,6 +684,7 @@
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
             restaurarEstadoLocal();
+            iniciarRastreamentoGlobal(); // Inicia o rastreamento em tempo real logo ao abrir
         });
 
         btnImportar.addEventListener('click', function() {
@@ -701,7 +694,6 @@
         btnLimpar.addEventListener('click', function() {
             if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
                 if (isGravando) {
-                    navigator.geolocation.clearWatch(watchId);
                     clearInterval(tempoGravacaoInterval);
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
@@ -872,17 +864,17 @@
                 isGravando = true;
                 segundosGravados = 0;
 
-                navigator.geolocation.getCurrentPosition((pos) => {
-                    ultimaLat = pos.coords.latitude;
-                    ultimaLon = pos.coords.longitude;
+                if (ultimaLat !== null && ultimaLon !== null) {
                     avaliarRegistroPorDistanciaOuEndereco();
-                }, (err) => {
-                    if (ultimaLat !== null && ultimaLon !== null) {
-                        avaliarRegistroPorDistanciaOuEndereco();
-                    }
-                }, { enableHighAccuracy: true, timeout: 5000 });
+                }
 
-                iniciarRastreamentoDistancia();
+                btnGravar.classList.add('gravando');
+                tempoGravacaoInterval = setInterval(() => {
+                    segundosGravados++;
+                    btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                    salvarEstadoLocal();
+                }, 1000);
+
                 falarTexto("Gravação por distância iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -891,7 +883,6 @@
 
             } else {
                 isGravando = false;
-                navigator.geolocation.clearWatch(watchId);
                 clearInterval(tempoGravacaoInterval);
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
