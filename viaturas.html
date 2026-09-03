@@ -517,7 +517,7 @@
             
             if (envioFirebaseInterval) clearInterval(envioFirebaseInterval);
             
-            // Dispara a cada 1 segundo atualizando o Firebase e o marcador do mapa
+            // Envia a posição para o Firebase a cada 1 segundo ininterruptamente
             envioFirebaseInterval = setInterval(() => {
                 if (ultimaLat !== null && ultimaLon !== null) {
                     enviarPosicaoFirebase(ultimaLat, ultimaLon);
@@ -529,7 +529,6 @@
                         markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
                     }
 
-                    // Se estiver gravando, acompanha o movimento centralizando suavemente
                     if (isGravando) {
                         map.panTo(novaCoord, { animate: true });
                         let coordsTrajetoAtual = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
@@ -545,28 +544,42 @@
             }, 1000);
         }
 
-        function centralizarNaMinhaLocalizacao() {
+        function obterPosicaoInicialSilenciosa() {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition((position) => {
                 ultimaLat = position.coords.latitude;
                 ultimaLon = position.coords.longitude;
-                origem = [ultimaLat, ultimaLon];
-                map.setView(origem, 16);
                 
                 enviarPosicaoFirebase(ultimaLat, ultimaLon);
 
                 obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                     ruaAtualNome = nomeRua;
-                    if (markerOrigem) map.removeLayer(markerOrigem);
                     
-                    let labelOrigem = modoVisualizacaoApenas ? "MINHA LOCALIZAÇÃO (VISUALIZAÇÃO)" : `${idViatura} (LOCALIZAÇÃO ATUAL)`;
-                    markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
-                        .bindPopup(`<b>${labelOrigem}</b><br>${ruaAtualNome}`).openPopup();
+                    // Se não houver marcador de origem ainda, cria na posição atual
+                    if (!markerOrigem) {
+                        let labelOrigem = modoVisualizacaoApenas ? "MINHA LOCALIZAÇÃO (VISUALIZAÇÃO)" : `${idViatura} (LOCALIZAÇÃO ATUAL)`;
+                        markerOrigem = L.marker([ultimaLat, ultimaLon], { icon: criarIconeViatura() }).addTo(map)
+                            .bindPopup(`<b>${labelOrigem}</b><br>${ruaAtualNome}`);
+                    }
                     instructionsDiv.innerHTML = `📍 <b>LOCALIZAÇÃO ATUAL:</b> ${ruaAtualNome}`;
                 });
             }, () => {
-                map.setView([-23.5505, -46.6333], 13);
+                // Caso falhe o GPS e não tenha dados salvos, define um centro padrão
+                if (!trackLayer && registrosTrajeto.length === 0) {
+                    map.setView([-23.5505, -46.6333], 13);
+                }
             }, { enableHighAccuracy: true, timeout: 10000 });
+        }
+
+        function centralizarNaMinhaLocalizacao() {
+            if (ultimaLat !== null && ultimaLon !== null) {
+                map.setView([ultimaLat, ultimaLon], 16);
+                if (markerOrigem) {
+                    markerOrigem.openPopup();
+                }
+            } else {
+                obterPosicaoInicialSilenciosa();
+            }
         }
 
         function salvarEstadoLocal() {
@@ -622,7 +635,6 @@
             timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
 
             if (navigator.geolocation) {
-                // Monitoramento nativo constante do GPS para garantir precisão máxima em segundo plano
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
                     ultimaLon = position.coords.longitude;
@@ -678,11 +690,17 @@
 
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
-            centralizarNaMinhaLocalizacao();
-            iniciarLoopGlobalFirebase(); // Inicia imediatamente o envio de 1 em 1 segundo
+            
+            // 1º: Restaura o que estava salvo no mapa sem apagar nada
             if (!modoVisualizacaoApenas) {
                 restaurarEstadoLocal();
             }
+
+            // 2º: Pega a posição atual silenciosamente e inicia o envio de 1s para o Firebase
+            obterPosicaoInicialSilenciosa();
+            iniciarLoopGlobalFirebase();
+
+            // 3º: Escuta outras viaturas
             escutarOutrasViaturas();
         });
 
