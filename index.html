@@ -118,11 +118,11 @@
 
         /* Painel Formal Estilo RSO */
         #painel-relatorio {
-            display: none;
+            display: block; /* Mantido visível para acompanhar em tempo real */
             background: #ffffff;
             border-bottom: 2px solid #2c3e50;
             padding: 12px;
-            max-height: 250px;
+            max-height: 220px;
             overflow-y: auto;
             font-size: 12px;
             box-shadow: inset 0 4px 6px -4px rgba(0,0,0,0.1);
@@ -164,7 +164,7 @@
         }
         #textarea-edicao {
             width: 100%;
-            height: 140px;
+            height: 120px;
             font-family: Arial, sans-serif;
             font-size: 12px;
             text-transform: uppercase;
@@ -177,7 +177,7 @@
 
         #map {
             width: 100%;
-            height: calc(100vh - 190px);
+            height: calc(100vh - 350px); /* Ajustado dinamicamente considerando o painel visível */
             touch-action: none; 
         }
         .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
@@ -208,16 +208,16 @@
     
     <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
 
-    <!-- Painel Formal de Exibição com Edição -->
+    <!-- Painel Formal de Exibição Dinâmica e Contínua -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
-            <strong>HISTÓRICO DE OPERAÇÕES:</strong>
+            <strong>RELATÓRIO EM TEMPO REAL:</strong>
             <div class="relatorio-acoes">
                 <button id="btn-editar">✏️ EDITAR</button>
                 <button id="btn-whatsapp">💬 WHATSAPP</button>
             </div>
         </div>
-        <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
+        <div id="texto-relatorio-visivel" class="relatorio-conteudo">AGUARDANDO INÍCIO DA GRAVAÇÃO...</div>
     </div>
 
     <div id="map"></div>
@@ -249,9 +249,10 @@
         let isGravando = false;
         let watchId = null;
         let tempoGravacaoInterval = null;
-        let intervaloRegistroMinutos = 1; // Alterado para salvar a cada 1 minuto
+        let intervaloRegistroMinutos = 1; 
         let timerRegistroInterval = null;
         let segundosGravados = 0;
+        let dataInicioGravacao = "";
 
         let registrosTrajeto = [];
         let pontosDeMelhoria = [];
@@ -349,7 +350,7 @@
                 cor: "#CE93D8",
                 descricao: "Setor 111",
                 coordenadas: [
-                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.6869266, -46.5473642]
+                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.692666, -46.5473642]
                 ]
             }
         ];
@@ -542,14 +543,48 @@
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
+        // Função responsável por gerar o texto em tempo real conforme os dados mudam
+        function atualizarTextoRelatorioDinamico() {
+            let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
+            relatorioFormal += `DATA: ${dataInicioGravacao || new Date().toLocaleDateString('pt-BR')} | TEMPO DECORRIDO: ${formatarTempo(segundosGravados)}\n\n`;
+            relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
+
+            let contadorItem = 1;
+            if (registrosTrajeto.length > 0) {
+                registrosTrajeto.forEach((ponto) => {
+                    const hora = ponto.hora || 'N/A';
+                    const rua = (ponto.rua || 'N/A').toUpperCase();
+                    relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
+                    contadorItem++;
+                });
+            } else {
+                relatorioFormal += `AGUARDANDO REGISTROS DE TRAJETO...\n`;
+            }
+
+            if (pontosDeMelhoria.length > 0) {
+                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                pontosDeMelhoria.forEach((pm) => {
+                    const hora = pm.hora || 'N/A';
+                    const rua = (pm.rua || 'N/A').toUpperCase();
+                    const comentario = (pm.comentario || 'OCORRÊNCIA REGISTRADA').toUpperCase();
+                    relatorioFormal += `• ÀS ${hora} - ${rua} - ${comentario}.\n`;
+                });
+            }
+
+            textoRelatorioPronto = relatorioFormal;
+            if (!emModoEdicao) {
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+            }
+        }
+
         function salvarEstadoLocal() {
             const estado = {
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
-                temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
                 segundosGravados,
+                dataInicioGravacao,
                 intervaloRegistroMinutos
             };
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
@@ -567,6 +602,8 @@
                 rua: ruaAtualNome !== "AGUARDANDO..." ? ruaAtualNome : "OBTENDO LOCAL...", 
                 coordenadas: novaCoord 
             });
+            
+            atualizarTextoRelatorioDinamico();
             salvarEstadoLocal();
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
@@ -574,6 +611,7 @@
                 if (registrosTrajeto[indexPonto]) {
                     registrosTrajeto[indexPonto].rua = ruaAtualNome;
                 }
+                atualizarTextoRelatorioDinamico();
                 salvarEstadoLocal();
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -589,6 +627,7 @@
             tempoGravacaoInterval = setInterval(() => {
                 segundosGravados++;
                 btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                atualizarTextoRelatorioDinamico();
                 salvarEstadoLocal();
             }, 1000);
 
@@ -618,11 +657,11 @@
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
+                dataInicioGravacao = estado.dataInicioGravacao || "";
                 intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 1;
 
-                if (estado.temRelatorioVisivel && textoRelatorioPronto) {
+                if (textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                    painelRelatorio.style.display = "block";
                 }
 
                 const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
@@ -672,8 +711,8 @@
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 textoRelatorioPronto = "";
-                textoRelatorioVisivel.textContent = "";
-                painelRelatorio.style.display = "none";
+                dataInicioGravacao = "";
+                textoRelatorioVisivel.textContent = "AGUARDANDO INÍCIO DA GRAVAÇÃO...";
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
 
@@ -707,7 +746,6 @@
                     relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
                     let contadorItem = 1;
-
                     if (historico.length > 0) {
                         historico.forEach((ponto) => {
                             const hora = ponto.hora || 'N/A';
@@ -739,7 +777,6 @@
                     btnEditar.textContent = "✏️ EDITAR";
                     btnEditar.style.backgroundColor = "#d35400";
                     textoRelatorioVisivel.textContent = relatorioFormal;
-                    painelRelatorio.style.display = "block";
                     salvarEstadoLocal();
 
                     instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
@@ -826,13 +863,12 @@
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
                 
-                // Intervalo fixo padrão atualizado para 1 minuto
                 intervaloRegistroMinutos = 1;
-
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
                 isGravando = true;
                 segundosGravados = 0;
+                dataInicioGravacao = new Date().toLocaleDateString('pt-BR');
 
                 navigator.geolocation.getCurrentPosition((pos) => {
                     ultimaLat = pos.coords.latitude;
@@ -862,7 +898,7 @@
                 falarTexto("Gravação encerrada.");
 
                 const dadosRota = {
-                    dataInicio: new Date().toLocaleDateString('pt-BR'),
+                    dataInicio: dataInicioGravacao,
                     tempoTotal: formatarTempo(segundosGravados),
                     historicoRuasETempo: registrosTrajeto,
                     pontosMarcados: pontosDeMelhoria
@@ -871,7 +907,6 @@
                 const jsonString = JSON.stringify(dadosRota, null, 2);
                 const nomeSugestao = `viatura_trajeto_${new Date().toISOString().slice(0,10)}.json`;
 
-                // Tenta usar a API nativa do navegador para "Salvar Como..." (pergunta onde salvar)
                 if (window.showSaveFilePicker) {
                     try {
                         const options = {
@@ -886,13 +921,11 @@
                         await writable.write(jsonString);
                         await writable.close();
                     } catch (err) {
-                        // Se o usuário cancelar a janela de salvamento, não faz nada
                         if (err.name !== 'AbortError') {
                             console.error("Erro ao salvar arquivo via File System Access API:", err);
                         }
                     }
                 } else {
-                    // Fallback para navegadores sem suporte ao showSaveFilePicker
                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
                     const downloadAnchor = document.createElement('a');
                     downloadAnchor.setAttribute("href", dataStr);
@@ -914,6 +947,8 @@
             if (nota !== null) {
                 const notaUpper = nota.toUpperCase();
                 pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
+                
+                atualizarTextoRelatorioDinamico();
                 salvarEstadoLocal();
 
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
