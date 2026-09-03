@@ -251,8 +251,8 @@
         let tempoGravacaoInterval = null;
         let segundosGravados = 0;
 
-        // Configurações da nova lógica baseada em distância e alteração de endereço
-        const distanciaMinimaMetros = 50; // Salva a cada 50 metros percorridos
+        // Configurações baseadas em distância e alteração de endereço
+        const distanciaMinimaMetros = 50; 
         let ultimaCoordenadaSalva = null;
         let ultimaRuaSalva = "";
 
@@ -280,6 +280,29 @@
         
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
+
+        // Função para emitir som (bipe) indicando salvamento/espera
+        function emitirSomBiPE(frequencia = 600, duracao = 150) {
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.value = frequencia;
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                osc.start();
+                osc.stop(ctx.currentTime + (duracao / 1000));
+            } catch (e) {
+                console.log("Áudio não suportado ou bloqueado pelo navegador", e);
+            }
+        }
 
         // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML
         const dadosSetoresKML = [
@@ -587,6 +610,7 @@
                         ultimaLat, ultimaLon
                     );
 
+                    // Só grava se alterou 50 metros ou mudou de rua (evitando duplicar se for o mesmo local exato)
                     if (distancia >= distanciaMinimaMetros || (ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA")) {
                         deveSalvar = true;
                     }
@@ -602,6 +626,9 @@
                         coordenadas: novaCoord 
                     });
                     salvarEstadoLocal();
+
+                    // Emite som de bipe curto indicando que um novo ponto foi salvo com sucesso no celular
+                    emitirSomBiPE(800, 120);
 
                     if (trackLayer) map.removeLayer(trackLayer);
                     trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
@@ -684,7 +711,7 @@
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
             restaurarEstadoLocal();
-            iniciarRastreamentoGlobal(); // Inicia o rastreamento em tempo real logo ao abrir
+            iniciarRastreamentoGlobal(); 
         });
 
         btnImportar.addEventListener('click', function() {
@@ -875,6 +902,10 @@
                     salvarEstadoLocal();
                 }, 1000);
 
+                // Som de bipe duplo agudo indicando início da gravação
+                emitirSomBiPE(1000, 100);
+                setTimeout(() => emitirSomBiPE(1000, 100), 150);
+
                 falarTexto("Gravação por distância iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -887,6 +918,9 @@
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
+                
+                // Som de bipe grave indicando término/salvamento da rota
+                emitirSomBiPE(400, 300);
                 falarTexto("Gravação encerrada.");
 
                 const dadosRota = {
@@ -943,6 +977,7 @@
 
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
+                emitirSomBiPE(1200, 150);
                 falarTexto("Ponto marcado.");
             }
         });
