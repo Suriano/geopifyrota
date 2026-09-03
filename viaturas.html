@@ -241,13 +241,17 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Identificação única desta viatura/usuário
-        let idViatura = prompt("Digite o indicativo da sua viatura (Ex: US-01):");
-        if (!idViatura || idViatura.trim() === "") {
-            idViatura = "VIATURA_" + Math.floor(Math.random() * 1000);
+        // Identificação única opcional (modo visualização se cancelado)
+        let promptViatura = prompt("Digite o indicativo da sua viatura (Ex: US-01):\n(Clique em Cancelar apenas para visualizar)");
+        let idViatura = null;
+        let modoVisualizacaoApenas = false;
+
+        if (promptViatura === null || promptViatura.trim() === "") {
+            modoVisualizacaoApenas = true;
+            idViatura = null;
+        } else {
+            idViatura = promptViatura.toUpperCase().replace(/[.#$\/\[\]]/g, "_");
         }
-        // Limpa caracteres especiais da chave do Firebase para evitar erros
-        idViatura = idViatura.toUpperCase().replace(/[.#$\/\[\]]/g, "_");
 
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
@@ -348,8 +352,8 @@
                 });
         }
 
-        // --- Sincronização em Tempo Real com Firebase ---
         function enviarPosicaoFirebase(lat, lon) {
+            if (modoVisualizacaoApenas || !idViatura) return;
             db.ref('viaturas_ativas/' + idViatura).set({
                 lat: lat,
                 lon: lon,
@@ -371,7 +375,6 @@
 
                 const chavesAtuaisNoBanco = Object.keys(dados);
 
-                // Remove do mapa viaturas que já não estão mais ativas no banco
                 Object.keys(marcadoresOutrasViaturas).forEach((key) => {
                     if (!dados[key]) {
                         map.removeLayer(marcadoresOutrasViaturas[key]);
@@ -379,9 +382,8 @@
                     }
                 });
 
-                // Atualiza ou cria o marcador de cada viatura
                 chavesAtuaisNoBanco.forEach((key) => {
-                    if (key === idViatura) return; // Ignora a si mesmo
+                    if (key === idViatura) return;
 
                     const outra = dados[key];
                     if (!outra || typeof outra.lat === 'undefined' || typeof outra.lon === 'undefined') return;
@@ -522,9 +524,11 @@
                 obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                     ruaAtualNome = nomeRua;
                     if (markerOrigem) map.removeLayer(markerOrigem);
+                    
+                    let labelOrigem = modoVisualizacaoApenas ? "MINHA LOCALIZAÇÃO (VISUALIZAÇÃO)" : `${idViatura} (LOCALIZAÇÃO ATUAL)`;
                     markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
-                        .bindPopup(`<b>${idViatura} (LOCALIZAÇÃO ATUAL)</b><br>${ruaAtualNome}`).openPopup();
-                    instructionsDiv.innerHTML = `📍 <b>ORIGEM (${idViatura}):</b> ${ruaAtualNome}`;
+                        .bindPopup(`<b>${labelOrigem}</b><br>${ruaAtualNome}`).openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>LOCALIZAÇÃO ATUAL:</b> ${ruaAtualNome}`;
                 });
             }, () => {
                 map.setView([-23.5505, -46.6333], 13);
@@ -532,6 +536,7 @@
         }
 
         function salvarEstadoLocal() {
+            if (modoVisualizacaoApenas) return;
             const estado = {
                 registrosTrajeto,
                 pontosDeMelhoria,
@@ -545,7 +550,7 @@
         }
 
         function registrarPontoAtualNoHistorico() {
-            if (!isGravando || ultimaLat === null || ultimaLon === null) return;
+            if (modoVisualizacaoApenas || !isGravando || ultimaLat === null || ultimaLon === null) return;
             
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
             const novaCoord = [ultimaLat, ultimaLon];
@@ -572,6 +577,7 @@
         }
 
         function iniciarIntervalosGravacao() {
+            if (modoVisualizacaoApenas) return;
             btnGravar.classList.add('gravando');
             btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
 
@@ -600,6 +606,7 @@
         }
 
         function restaurarEstadoLocal() {
+            if (modoVisualizacaoApenas) return;
             const salvo = localStorage.getItem('gps_rpm_estado_atual');
             if (!salvo) return;
 
@@ -645,13 +652,16 @@
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
-            restaurarEstadoLocal();
+            if (!modoVisualizacaoApenas) {
+                restaurarEstadoLocal();
+            }
             escutarOutrasViaturas();
         });
 
-        // Limpeza no Firebase ao fechar ou sair da página
         window.addEventListener('beforeunload', () => {
-            db.ref('viaturas_ativas/' + idViatura).remove();
+            if (!modoVisualizacaoApenas && idViatura) {
+                db.ref('viaturas_ativas/' + idViatura).remove();
+            }
         });
 
         btnImportar.addEventListener('click', function() {
@@ -659,7 +669,7 @@
         });
 
         btnLimpar.addEventListener('click', function() {
-            if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
+            if (confirm("Deseja realmente limpar os dados atuais e reiniciar um novo relatório?")) {
                 if (isGravando) {
                     navigator.geolocation.clearWatch(watchId);
                     clearInterval(tempoGravacaoInterval);
@@ -700,7 +710,7 @@
                     const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
                     const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
 
-                    let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL (${idViatura})\n`;
+                    let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL (${idViatura || 'VISUALIZADOR'})\n`;
                     relatorioFormal += `DATA: ${dados.dataInicio || dados.data || 'N/A'} | TEMPO TOTAL: ${dados.tempoTotal || 'N/A'}\n\n`;
                     relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
@@ -821,6 +831,11 @@
         }
 
         btnGravar.addEventListener('click', function() {
+            if (modoVisualizacaoApenas) {
+                alert("Modo de apenas visualização. Não é possível gravar rotas sem um indicativo de viatura.");
+                return;
+            }
+
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
                 
@@ -887,6 +902,10 @@
         });
 
         btnMarcar.addEventListener('click', function() {
+            if (modoVisualizacaoApenas) {
+                alert("Modo de visualização. Função desativada.");
+                return;
+            }
             if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
             if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
             const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
