@@ -1,10 +1,11 @@
 
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RPM Patrulhamento</title>
+    <title>GPS RPM & QTH Patrulhamento com Rádio</title>
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -13,6 +14,7 @@
     <!-- Firebase SDK Compat -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
 
     <style>
         body {
@@ -180,10 +182,49 @@
 
         #map {
             width: 100%;
-            height: calc(100vh - 190px);
+            height: calc(100vh - 250px);
             touch-action: none; 
         }
         .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
+
+        /* Estilo da barra de rádio PTT */
+        #radio-panel {
+            background-color: #1abc9c;
+            padding: 8px;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            border-top: 2px solid #16a085;
+            color: white;
+        }
+        #btn-ptt {
+            background-color: #e74c3c;
+            color: white;
+            border: 2px solid #fff;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 30px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #btn-ptt.falando {
+            background-color: #c0392b;
+            transform: scale(0.95);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+            animation: pulsar 1s infinite;
+        }
+        #status-radio {
+            font-size: 12px;
+            font-weight: bold;
+            background: rgba(0,0,0,0.2);
+            padding: 5px 10px;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -206,6 +247,12 @@
         <button id="btn-importar">📂 ABRIR</button>
         <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
         <input type="file" id="input-json" style="display: none;" />
+    </div>
+
+    <!-- Barra de Rádio PTT -->
+    <div id="radio-panel">
+        <button id="btn-ptt">🎙️ SEGURAR PARA FALAR (QAP)</button>
+        <span id="status-radio">RÁDIO: EM ESCUTA</span>
     </div>
     
     <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
@@ -241,6 +288,7 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const storage = firebase.storage();
 
         // Identificação única desta viatura/usuário
         let idViatura = prompt("Digite o indicativo da sua viatura (Ex: US-01):");
@@ -300,6 +348,9 @@
         
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
+        
+        const btnPtt = document.getElementById('btn-ptt');
+        const statusRadio = document.getElementById('status-radio');
 
         function criarIconeViatura() {
             return L.divIcon({
@@ -348,7 +399,7 @@
                 });
         }
 
-        // --- Sincronização em Tempo Real com Firebase ---
+        // --- Sincronização em Tempo Real de Posições ---
         function enviarPosicaoFirebase(lat, lon) {
             db.ref('viaturas_ativas/' + idViatura).set({
                 lat: lat,
@@ -363,7 +414,7 @@
                 if (!dados) return;
 
                 Object.keys(dados).forEach((key) => {
-                    if (key === idViatura) return; // Ignora a si mesmo
+                    if (key === idViatura) return;
 
                     const outra = dados[key];
                     const coords = [outra.lat, outra.lon];
@@ -377,6 +428,98 @@
                     }
                 });
             });
+        }
+
+        // --- SISTEMA DE RÁDIO PTT (VOZ RÁPIDA) ---
+        let mediaRecorder;
+        let audioChunks = [];
+
+        async function configurarRadioPTT() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    
+                    statusRadio.textContent = "ENVIANDO ÁUDIO...";
+                    
+                    const fileName = `radio_${idViatura}_${Date.now()}.webm`;
+                    const storageRef = storage.ref().child('audios_radio/' + fileName);
+                    
+                    try {
+                        const snapshot = await storageRef.put(audioBlob);
+                        const downloadURL = await snapshot.ref.getDownloadURL();
+
+                        // Salva no Realtime Database para disparar a reprodução nas outras viaturas
+                        db.ref('radio_transmissoes').set({
+                            emitente: idViatura,
+                            url: downloadURL,
+                            timestamp: Date.now()
+                        });
+
+                        statusRadio.textContent = "RÁDIO: EM ESCUTA";
+                    } catch (e) {
+                        console.error("Erro ao enviar áudio do rádio:", e);
+                        statusRadio.textContent = "ERRO AO ENVIAR ÁUDIO";
+                    }
+                };
+            } catch (e) {
+                console.warn("Microfone não permitido ou indisponível:", e);
+                statusRadio.textContent = "MICROFONE INDISPONÍVEL";
+            }
+        }
+
+        // Ouvir transmissões de rádio de outras viaturas em tempo real
+        function escutarRadioGeral() {
+            db.ref('radio_transmissoes').on('value', (snapshot) => {
+                const dados = snapshot.val();
+                if (!dados) return;
+
+                // Não reproduzir o próprio áudio enviado
+                if (dados.emitente === idViatura) return;
+
+                statusRadio.textContent = `🔊 FALANDO: ${dados.emitente}`;
+                
+                const audio = new Audio(dados.url);
+                audio.play().catch(err => console.log("Erro ao reproduzir áudio automaticamente:", err));
+                
+                audio.onended = () => {
+                    statusRadio.textContent = "RÁDIO: EM ESCUTA";
+                };
+            });
+        }
+
+        // Eventos de pressionar o botão de PTT (Mouse e Celular/Touch)
+        btnPtt.addEventListener('mousedown', iniciarGravacaoRadio);
+        btnPtt.addEventListener('mouseup', pararGravacaoRadio);
+        btnPtt.addEventListener('touchstart', (e) => { e.preventDefault(); iniciarGravacaoRadio(); });
+        btnPtt.addEventListener('touchend', (e) => { e.preventDefault(); pararGravacaoRadio(); });
+
+        function iniciarGravacaoRadio() {
+            if (!mediaRecorder) {
+                alert("Permissão de microfone necessária para o rádio.");
+                configurarRadioPTT();
+                return;
+            }
+            audioChunks = [];
+            mediaRecorder.start();
+            btnPtt.classList.add('falando');
+            btnPtt.textContent = "🔴 TRANSMITINDO...";
+            statusRadio.textContent = "GRAVANDO VOZ...";
+        }
+
+        function pararGravacaoRadio() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                btnPtt.classList.remove('falando');
+                btnPtt.textContent = "🎙️ SEGURAR PARA FALAR (QAP)";
+            }
         }
 
         function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
@@ -626,6 +769,8 @@
             centralizarNaMinhaLocalizacao();
             restaurarEstadoLocal();
             escutarOutrasViaturas();
+            configurarRadioPTT();
+            escutarRadioGeral();
         });
 
         // Limpeza no Firebase ao fechar ou sair da página
@@ -884,33 +1029,5 @@
         btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
     </script>
 </body>
-</html>
-
-
-
-
-
-
-
-
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
-  authDomain: "mymaps-dca38.firebaseapp.com",
-  projectId: "mymaps-dca38",
-  storageBucket: "mymaps-dca38.firebasestorage.app",
-  messagingSenderId: "673104844104",
-  appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
-  measurementId: "G-9CE457DN5W"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+</htm>
+    
