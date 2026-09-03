@@ -241,7 +241,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Identificação única opcional (modo visualização se cancelado)
         let promptViatura = prompt("Digite o indicativo da sua viatura (Ex: US-01):\n(Clique em Cancelar apenas para visualizar)");
         let idViatura = null;
         let modoVisualizacaoApenas = false;
@@ -569,9 +568,6 @@
                     registrosTrajeto[indexPonto].rua = ruaAtualNome;
                 }
                 salvarEstadoLocal();
-
-                if (trackLayer) map.removeLayer(trackLayer);
-                trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
                 instructionsDiv.innerHTML = `⏱️ PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
             });
         }
@@ -598,10 +594,29 @@
                     
                     enviarPosicaoFirebase(ultimaLat, ultimaLon);
 
-                    map.setView(novaCoord, 16);
-                    if (markerOrigem) map.removeLayer(markerOrigem);
-                    markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
-                }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+                    // ATUALIZAÇÃO EM TEMPO REAL ESTILO GPS (SEM BLOQUEAR O MAPA)
+                    if (markerOrigem) {
+                        markerOrigem.setLatLng(novaCoord);
+                    } else {
+                        markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
+                    }
+
+                    // Centraliza suavemente na posição atual para acompanhar o deslocamento
+                    map.panTo(novaCoord, { animate: true });
+
+                    // Desenha/Atualiza o trajeto percorrido em tempo real na tela
+                    let coordsTrajetoAtual = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
+                    coordsTrajetoAtual.push(novaCoord);
+
+                    if (trackLayer) {
+                        trackLayer.setLatLngs(coordsTrajetoAtual);
+                    } else {
+                        trackLayer = L.polyline(coordsTrajetoAtual, { color: '#c0392b', weight: 5 }).addTo(map);
+                    }
+
+                }, (err) => {
+                    console.warn("Erro no watchPosition: ", err);
+                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             }
         }
 
