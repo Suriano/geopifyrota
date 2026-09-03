@@ -118,11 +118,11 @@
 
         /* Painel Formal Estilo RSO */
         #painel-relatorio {
-            display: block; /* Mantido visível para acompanhar em tempo real */
+            display: none;
             background: #ffffff;
             border-bottom: 2px solid #2c3e50;
             padding: 12px;
-            max-height: 220px;
+            max-height: 250px;
             overflow-y: auto;
             font-size: 12px;
             box-shadow: inset 0 4px 6px -4px rgba(0,0,0,0.1);
@@ -164,7 +164,7 @@
         }
         #textarea-edicao {
             width: 100%;
-            height: 120px;
+            height: 140px;
             font-family: Arial, sans-serif;
             font-size: 12px;
             text-transform: uppercase;
@@ -177,7 +177,7 @@
 
         #map {
             width: 100%;
-            height: calc(100vh - 350px); /* Ajustado dinamicamente considerando o painel visível */
+            height: calc(100vh - 190px);
             touch-action: none; 
         }
         .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
@@ -208,16 +208,16 @@
     
     <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
 
-    <!-- Painel Formal de Exibição Dinâmica e Contínua -->
+    <!-- Painel Formal de Exibição com Edição -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
-            <strong>RELATÓRIO EM TEMPO REAL:</strong>
+            <strong>HISTÓRICO DE OPERAÇÕES:</strong>
             <div class="relatorio-acoes">
                 <button id="btn-editar">✏️ EDITAR</button>
                 <button id="btn-whatsapp">💬 WHATSAPP</button>
             </div>
         </div>
-        <div id="texto-relatorio-visivel" class="relatorio-conteudo">AGUARDANDO INÍCIO DA GRAVAÇÃO...</div>
+        <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
     </div>
 
     <div id="map"></div>
@@ -249,10 +249,12 @@
         let isGravando = false;
         let watchId = null;
         let tempoGravacaoInterval = null;
-        let intervaloRegistroMinutos = 1; 
-        let timerRegistroInterval = null;
         let segundosGravados = 0;
-        let dataInicioGravacao = "";
+
+        // Configurações da nova lógica baseada em distância e alteração de endereço
+        const distanciaMinimaMetros = 50; // Salva a cada 50 metros percorridos
+        let ultimaCoordenadaSalva = null;
+        let ultimaRuaSalva = "";
 
         let registrosTrajeto = [];
         let pontosDeMelhoria = [];
@@ -350,7 +352,7 @@
                 cor: "#CE93D8",
                 descricao: "Setor 111",
                 coordenadas: [
-                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.692666, -46.5473642]
+                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.69266, -46.5473642]
                 ]
             }
         ];
@@ -385,6 +387,18 @@
             utterance.lang = 'pt-BR';
             utterance.rate = 1.05;
             window.speechSynthesis.speak(utterance);
+        }
+
+        // Função auxiliar para calcular distância em metros entre duas coordenadas (Fórmula de Haversine)
+        function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Raio da Terra em metros
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
         }
 
         function obterNomeRuaPorCoord(lat, lon, callback) {
@@ -543,106 +557,90 @@
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
-        // Função responsável por gerar o texto em tempo real conforme os dados mudam
-        function atualizarTextoRelatorioDinamico() {
-            let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
-            relatorioFormal += `DATA: ${dataInicioGravacao || new Date().toLocaleDateString('pt-BR')} | TEMPO DECORRIDO: ${formatarTempo(segundosGravados)}\n\n`;
-            relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
-
-            let contadorItem = 1;
-            if (registrosTrajeto.length > 0) {
-                registrosTrajeto.forEach((ponto) => {
-                    const hora = ponto.hora || 'N/A';
-                    const rua = (ponto.rua || 'N/A').toUpperCase();
-                    relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
-                    contadorItem++;
-                });
-            } else {
-                relatorioFormal += `AGUARDANDO REGISTROS DE TRAJETO...\n`;
-            }
-
-            if (pontosDeMelhoria.length > 0) {
-                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
-                pontosDeMelhoria.forEach((pm) => {
-                    const hora = pm.hora || 'N/A';
-                    const rua = (pm.rua || 'N/A').toUpperCase();
-                    const comentario = (pm.comentario || 'OCORRÊNCIA REGISTRADA').toUpperCase();
-                    relatorioFormal += `• ÀS ${hora} - ${rua} - ${comentario}.\n`;
-                });
-            }
-
-            textoRelatorioPronto = relatorioFormal;
-            if (!emModoEdicao) {
-                textoRelatorioVisivel.textContent = textoRelatorioPronto;
-            }
-        }
-
         function salvarEstadoLocal() {
             const estado = {
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
+                temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
-                segundosGravados,
-                dataInicioGravacao,
-                intervaloRegistroMinutos
+                segundosGravados
             };
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
         }
 
-        function registrarPontoAtualNoHistorico() {
+        // Lógica de salvamento baseada em distância e alteração de endereço/coordenada
+        function avaliarRegistroPorDistanciaOuEndereco() {
             if (!isGravando || ultimaLat === null || ultimaLon === null) return;
-            
-            const horaAtual = new Date().toLocaleTimeString('pt-BR');
-            const novaCoord = [ultimaLat, ultimaLon];
 
-            const indexPonto = registrosTrajeto.length;
-            registrosTrajeto.push({ 
-                hora: horaAtual, 
-                rua: ruaAtualNome !== "AGUARDANDO..." ? ruaAtualNome : "OBTENDO LOCAL...", 
-                coordenadas: novaCoord 
-            });
-            
-            atualizarTextoRelatorioDinamico();
-            salvarEstadoLocal();
+            const novaCoord = [ultimaLat, ultimaLon];
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
-                if (registrosTrajeto[indexPonto]) {
-                    registrosTrajeto[indexPonto].rua = ruaAtualNome;
-                }
-                atualizarTextoRelatorioDinamico();
-                salvarEstadoLocal();
 
-                if (trackLayer) map.removeLayer(trackLayer);
-                trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
-                instructionsDiv.innerHTML = `⏱️ PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
+                let deveSalvar = false;
+
+                if (!ultimaCoordenadaSalva) {
+                    deveSalvar = true; // Primeiro ponto do trajeto
+                } else {
+                    const distancia = calcularDistanciaMetros(
+                        ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1],
+                        ultimaLat, ultimaLon
+                    );
+
+                    // Condição 1: Atingiu a distância mínima configurada (ex: 50 metros)
+                    // Condição 2: Mudou de rua/endereço em relação ao último ponto registrado
+                    if (distancia >= distanciaMinimaMetros || (ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA")) {
+                        deveSalvar = true;
+                    }
+                }
+
+                if (deveSalvar) {
+                    ultimaCoordenadaSalva = novaCoord;
+                    ultimaRuaSalva = ruaAtualNome;
+
+                    registrosTrajeto.push({ 
+                        hora: horaAtual, 
+                        rua: ruaAtualNome, 
+                        coordenadas: novaCoord 
+                    });
+                    salvarEstadoLocal();
+
+                    if (trackLayer) map.removeLayer(trackLayer);
+                    trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
+                    instructionsDiv.innerHTML = `📍 PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
+                }
             });
         }
 
-        function iniciarIntervalosGravacao() {
+        function iniciarRastreamentoDistancia() {
             btnGravar.classList.add('gravando');
             btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
 
             tempoGravacaoInterval = setInterval(() => {
                 segundosGravados++;
                 btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
-                atualizarTextoRelatorioDinamico();
                 salvarEstadoLocal();
             }, 1000);
 
-            const msIntervalo = intervaloRegistroMinutos * 60 * 1000;
-            timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
-
             if (navigator.geolocation) {
+                // O watchPosition monitora a mudança de posição do GPS em tempo real
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
                     ultimaLon = position.coords.longitude;
                     const novaCoord = [ultimaLat, ultimaLon];
+                    
                     map.setView(novaCoord, 16);
                     if (markerOrigem) map.removeLayer(markerOrigem);
                     markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
-                }, null, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+
+                    // Executa a verificação baseada em distância / alteração de endereço
+                    avaliarRegistroPorDistanciaOuEndereco();
+
+                }, (err) => {
+                    console.error("Erro de GPS no watchPosition:", err);
+                }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
             }
         }
 
@@ -657,17 +655,18 @@
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
-                dataInicioGravacao = estado.dataInicioGravacao || "";
-                intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 1;
 
-                if (textoRelatorioPronto) {
+                if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                    painelRelatorio.style.display = "block";
                 }
 
                 const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
                 if (coordsValidas.length > 0) {
                     trackLayer = L.polyline(coordsValidas, { color: isGravando ? '#c0392b' : '#2980b9', weight: 5 }).addTo(map);
                     map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                    // Restabelece a última coordenada salva para continuar a contagem de distância de onde parou
+                    ultimaCoordenadaSalva = coordsValidas[coordsValidas.length - 1];
                 }
 
                 pontosDeMelhoria.forEach(pm => {
@@ -679,8 +678,8 @@
                 });
 
                 if (isGravando) {
-                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO ANTERIOR...";
-                    iniciarIntervalosGravacao();
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO POR DISTÂNCIA...";
+                    iniciarRastreamentoDistancia();
                 } else if (registrosTrajeto.length > 0) {
                     instructionsDiv.innerHTML = `📂 DADOS ANTERIORES RECUPERADOS COM SUCESSO.`;
                 }
@@ -704,15 +703,16 @@
                 if (isGravando) {
                     navigator.geolocation.clearWatch(watchId);
                     clearInterval(tempoGravacaoInterval);
-                    clearInterval(timerRegistroInterval);
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
+                ultimaCoordenadaSalva = null;
+                ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
-                dataInicioGravacao = "";
-                textoRelatorioVisivel.textContent = "AGUARDANDO INÍCIO DA GRAVAÇÃO...";
+                textoRelatorioVisivel.textContent = "";
+                painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
 
@@ -746,6 +746,7 @@
                     relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
                     let contadorItem = 1;
+
                     if (historico.length > 0) {
                         historico.forEach((ponto) => {
                             const hora = ponto.hora || 'N/A';
@@ -777,6 +778,7 @@
                     btnEditar.textContent = "✏️ EDITAR";
                     btnEditar.style.backgroundColor = "#d35400";
                     textoRelatorioVisivel.textContent = relatorioFormal;
+                    painelRelatorio.style.display = "block";
                     salvarEstadoLocal();
 
                     instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
@@ -862,26 +864,26 @@
         btnGravar.addEventListener('click', async function() {
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
-                
-                intervaloRegistroMinutos = 1;
+
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
+                ultimaCoordenadaSalva = null;
+                ultimaRuaSalva = "";
                 isGravando = true;
                 segundosGravados = 0;
-                dataInicioGravacao = new Date().toLocaleDateString('pt-BR');
 
                 navigator.geolocation.getCurrentPosition((pos) => {
                     ultimaLat = pos.coords.latitude;
                     ultimaLon = pos.coords.longitude;
-                    registrarPontoAtualNoHistorico();
+                    avaliarRegistroPorDistanciaOuEndereco();
                 }, (err) => {
                     if (ultimaLat !== null && ultimaLon !== null) {
-                        registrarPontoAtualNoHistorico();
+                        avaliarRegistroPorDistanciaOuEndereco();
                     }
                 }, { enableHighAccuracy: true, timeout: 5000 });
 
-                iniciarIntervalosGravacao();
-                falarTexto("Gravação iniciada.");
+                iniciarRastreamentoDistancia();
+                falarTexto("Gravação por distância iniciada.");
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -891,14 +893,13 @@
                 isGravando = false;
                 navigator.geolocation.clearWatch(watchId);
                 clearInterval(tempoGravacaoInterval);
-                clearInterval(timerRegistroInterval);
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
                 falarTexto("Gravação encerrada.");
 
                 const dadosRota = {
-                    dataInicio: dataInicioGravacao,
+                    dataInicio: new Date().toLocaleDateString('pt-BR'),
                     tempoTotal: formatarTempo(segundosGravados),
                     historicoRuasETempo: registrosTrajeto,
                     pontosMarcados: pontosDeMelhoria
@@ -947,8 +948,6 @@
             if (nota !== null) {
                 const notaUpper = nota.toUpperCase();
                 pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
-                
-                atualizarTextoRelatorioDinamico();
                 salvarEstadoLocal();
 
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
