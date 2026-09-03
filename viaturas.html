@@ -188,7 +188,7 @@
 <body>
 
     <div id="header">
-        <h2>RELATÓRIOooooo DE SERVIÇO OPERACIONAL</h2>
+        <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
         <small style="color: #bdc3c7;">ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
     </div>
 
@@ -227,10 +227,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
     <script>
-        // --- CONFIGURAÇÃO DO FIREBASE ---
+        // --- CONFIGURAÇÃO DO FIREBASE (COM DATABASE URL CORRIGIDA) ---
         const firebaseConfig = {
             apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
             authDomain: "mymaps-dca38.firebaseapp.com",
+            databaseURL: "https://mymaps-dca38-default-rtdb.firebaseio.com",
             projectId: "mymaps-dca38",
             storageBucket: "mymaps-dca38.firebasestorage.app",
             messagingSenderId: "673104844104",
@@ -277,7 +278,7 @@
         let intervaloRegistroMinutos = 20;
         let timerRegistroInterval = null;
         let segundosGravados = 0;
-        let envioFirebaseInterval = null; // Novo loop por segundo para o Firebase
+        let envioFirebaseInterval = null; 
 
         let registrosTrajeto = [];
         let pontosDeMelhoria = [];
@@ -358,7 +359,7 @@
                 lat: lat,
                 lon: lon,
                 ultimaAtualizacao: new Date().toLocaleTimeString('pt-BR')
-            });
+            }).catch(err => console.error("Erro ao enviar para o Firebase:", err));
         }
 
         function escutarOutrasViaturas() {
@@ -511,6 +512,38 @@
             }
         }
 
+        function iniciarLoopGlobalFirebase() {
+            if (modoVisualizacaoApenas || !idViatura) return;
+            
+            // Inicia o envio contínuo para o Firebase a cada 1 segundo logo na inicialização
+            if (envioFirebaseInterval) clearInterval(envioFirebaseInterval);
+            
+            envioFirebaseInterval = setInterval(() => {
+                if (ultimaLat !== null && ultimaLon !== null) {
+                    enviarPosicaoFirebase(ultimaLat, ultimaLon);
+
+                    const novaCoord = [ultimaLat, ultimaLon];
+                    if (markerOrigem) {
+                        markerOrigem.setLatLng(novaCoord);
+                    } else {
+                        markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
+                    }
+
+                    if (isGravando) {
+                        map.panTo(novaCoord, { animate: true });
+                        let coordsTrajetoAtual = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
+                        coordsTrajetoAtual.push(novaCoord);
+
+                        if (trackLayer) {
+                            trackLayer.setLatLngs(coordsTrajetoAtual);
+                        } else {
+                            trackLayer = L.polyline(coordsTrajetoAtual, { color: '#c0392b', weight: 5 }).addTo(map);
+                        }
+                    }
+                }
+            }, 1000);
+        }
+
         function centralizarNaMinhaLocalizacao() {
             if (!navigator.geolocation) return;
             navigator.geolocation.getCurrentPosition((position) => {
@@ -587,32 +620,6 @@
             const msIntervalo = intervaloRegistroMinutos * 60 * 1000;
             timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
 
-            // LOOP CONTÍNUO A CADA 1 SEGUNDO PARA ENVIAR AO FIREBASE E MOVER O MAPA FLUIDAMENTE
-            envioFirebaseInterval = setInterval(() => {
-                if (ultimaLat !== null && ultimaLon !== null) {
-                    const novaCoord = [ultimaLat, ultimaLon];
-                    
-                    enviarPosicaoFirebase(ultimaLat, ultimaLon);
-
-                    if (markerOrigem) {
-                        markerOrigem.setLatLng(novaCoord);
-                    } else {
-                        markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
-                    }
-
-                    map.panTo(novaCoord, { animate: true });
-
-                    let coordsTrajetoAtual = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
-                    coordsTrajetoAtual.push(novaCoord);
-
-                    if (trackLayer) {
-                        trackLayer.setLatLngs(coordsTrajetoAtual);
-                    } else {
-                        trackLayer = L.polyline(coordsTrajetoAtual, { color: '#c0392b', weight: 5 }).addTo(map);
-                    }
-                }
-            }, 1000);
-
             if (navigator.geolocation) {
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
@@ -670,6 +677,7 @@
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
+            iniciarLoopGlobalFirebase();
             if (!modoVisualizacaoApenas) {
                 restaurarEstadoLocal();
             }
@@ -692,7 +700,6 @@
                     navigator.geolocation.clearWatch(watchId);
                     clearInterval(tempoGravacaoInterval);
                     clearInterval(timerRegistroInterval);
-                    clearInterval(envioFirebaseInterval);
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
@@ -895,7 +902,6 @@
                 navigator.geolocation.clearWatch(watchId);
                 clearInterval(tempoGravacaoInterval);
                 clearInterval(timerRegistroInterval);
-                clearInterval(envioFirebaseInterval);
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
