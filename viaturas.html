@@ -227,7 +227,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
     <script>
-        // --- CONFIGURAÇÃO DO FIREBASE (COM DATABASE URL CORRIGIDA) ---
+        // --- CONFIGURAÇÃO DO FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
             authDomain: "mymaps-dca38.firebaseapp.com",
@@ -515,9 +515,9 @@
         function iniciarLoopGlobalFirebase() {
             if (modoVisualizacaoApenas || !idViatura) return;
             
-            // Inicia o envio contínuo para o Firebase a cada 1 segundo logo na inicialização
             if (envioFirebaseInterval) clearInterval(envioFirebaseInterval);
             
+            // Dispara a cada 1 segundo atualizando o Firebase e o marcador do mapa
             envioFirebaseInterval = setInterval(() => {
                 if (ultimaLat !== null && ultimaLon !== null) {
                     enviarPosicaoFirebase(ultimaLat, ultimaLon);
@@ -529,6 +529,7 @@
                         markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
                     }
 
+                    // Se estiver gravando, acompanha o movimento centralizando suavemente
                     if (isGravando) {
                         map.panTo(novaCoord, { animate: true });
                         let coordsTrajetoAtual = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
@@ -621,6 +622,7 @@
             timerRegistroInterval = setInterval(registrarPontoAtualNoHistorico, msIntervalo);
 
             if (navigator.geolocation) {
+                // Monitoramento nativo constante do GPS para garantir precisão máxima em segundo plano
                 watchId = navigator.geolocation.watchPosition((position) => {
                     ultimaLat = position.coords.latitude;
                     ultimaLon = position.coords.longitude;
@@ -677,7 +679,7 @@
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
-            iniciarLoopGlobalFirebase();
+            iniciarLoopGlobalFirebase(); // Inicia imediatamente o envio de 1 em 1 segundo
             if (!modoVisualizacaoApenas) {
                 restaurarEstadoLocal();
             }
