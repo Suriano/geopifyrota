@@ -249,7 +249,7 @@
         let isGravando = false;
         let watchId = null;
         let tempoGravacaoInterval = null;
-        let intervaloRegistroMinutos = 20;
+        let intervaloRegistroMinutos = 5; // Padrão alterado para 5 minutos fixos
         let timerRegistroInterval = null;
         let segundosGravados = 0;
 
@@ -618,7 +618,7 @@
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
-                intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 20;
+                intervaloRegistroMinutos = estado.intervaloRegistroMinutos || 5;
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -826,15 +826,8 @@
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
                 
-                let escolha = prompt("Escolha o intervalo de registro automático:\n1 - De 20 em 20 minutos\n2 - De 30 em 30 minutos", "1");
-                
-                if (escolha === null) return;
-
-                if (escolha === "2") {
-                    intervaloRegistroMinutos = 30;
-                } else {
-                    intervaloRegistroMinutos = 20;
-                }
+                // Intervalo fixo padrão de 5 minutos (funcionalidade de prompt removida)
+                intervaloRegistroMinutos = 5;
 
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
