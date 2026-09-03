@@ -246,7 +246,8 @@
         if (!idViatura || idViatura.trim() === "") {
             idViatura = "VIATURA_" + Math.floor(Math.random() * 1000);
         }
-        idViatura = idViatura.toUpperCase();
+        // Limpa caracteres especiais da chave do Firebase para evitar erros
+        idViatura = idViatura.toUpperCase().replace(/[.#$\/\[\]]/g, "_");
 
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
@@ -360,7 +361,6 @@
             db.ref('viaturas_ativas').on('value', (snapshot) => {
                 const dados = snapshot.val();
                 
-                // Se o banco estiver vazio, limpa tudo
                 if (!dados) {
                     Object.keys(marcadoresOutrasViaturas).forEach((key) => {
                         map.removeLayer(marcadoresOutrasViaturas[key]);
@@ -371,7 +371,7 @@
 
                 const chavesAtuaisNoBanco = Object.keys(dados);
 
-                // Remove do mapa viaturas que sumiram/desconectaram
+                // Remove do mapa viaturas que já não estão mais ativas no banco
                 Object.keys(marcadoresOutrasViaturas).forEach((key) => {
                     if (!dados[key]) {
                         map.removeLayer(marcadoresOutrasViaturas[key]);
@@ -379,7 +379,7 @@
                     }
                 });
 
-                // Atualiza ou adiciona as viaturas ativas
+                // Atualiza ou cria o marcador de cada viatura
                 chavesAtuaisNoBanco.forEach((key) => {
                     if (key === idViatura) return; // Ignora a si mesmo
 
@@ -888,7 +888,7 @@
 
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
-            if (registrosTageto.length === 0 && registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
+            if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
             const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
             const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
             if (nota !== null) {
@@ -898,7 +898,7 @@
 
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
-                falarTexto("Pontoမှတ်ado.");
+                falarTexto("Ponto marcado.");
             }
         });
 
