@@ -98,6 +98,7 @@
         #btn-gravar { background-color: #c0392b; min-width: 140px; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
+        #btn-relatorio { background-color: #27ae60; }
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
 
@@ -201,6 +202,7 @@
 
         <button id="btn-gravar">🔴 GRAVAR ROTA</button>
         <button id="btn-marcar">⭐ MARCAR PONTO</button>
+        <button id="btn-relatorio">📋 GERAR RELATÓRIO</button>
         <button id="btn-importar">📂 ABRIR</button>
         <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
         <input type="file" id="input-json" style="display: none;" />
@@ -270,6 +272,7 @@
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
+        const btnRelatorio = document.getElementById('btn-relatorio');
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
@@ -779,6 +782,12 @@
 
         btnImportar.addEventListener('click', function() {
             inputJson.click();
+        });
+
+        btnRelatorio.addEventListener('click', function() {
+            atualizarPainelRelatorioDinamico();
+            instructionsDiv.innerHTML = "📋 RELATÓRIO GERADO COM SUCESSO!";
+            falarTexto("Relatório gerado.");
         });
 
         btnLimpar.addEventListener('click', function() {
