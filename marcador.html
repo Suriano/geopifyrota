@@ -98,7 +98,6 @@
         #btn-gravar { background-color: #c0392b; min-width: 140px; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
-        #btn-relatorio-marcador { background-color: #8e44ad; } /* Estilo do Novo Botão */
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
 
@@ -202,7 +201,6 @@
 
         <button id="btn-gravar">🔴 GRAVAR ROTA</button>
         <button id="btn-marcar">⭐ MARCAR PONTO</button>
-        <button id="btn-relatorio-marcador">📋 RELATÓRIO MARCADOR</button> <!-- Novo Botão Inserido -->
         <button id="btn-importar">📂 ABRIR</button>
         <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
         <input type="file" id="input-json" style="display: none;" />
@@ -272,7 +270,6 @@
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
-        const btnRelatorioMarcador = document.getElementById('btn-relatorio-marcador'); // Referência ao novo botão
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
@@ -989,61 +986,26 @@
         });
 
         btnMarcar.addEventListener('click', function() {
-            if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
-            if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
-            const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
-            const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
-            if (nota !== null) {
-                const notaUpper = nota.toUpperCase();
-                pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
-                salvarEstadoLocal();
-
-                const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
-                marcadoresMelhoriaLayers.push(m);
-                falarTexto("Ponto marcado.");
+            if (ultimaLat === null || ultimaLon === null) { 
+                alert("AGUARDANDO SINAL DE GPS."); 
+                return; 
             }
-        });
-
-        // Funcionalidade do Novo Botão: RELATÓRIO MARCADOR
-        btnRelatorioMarcador.addEventListener('click', function() {
-            if (pontosDeMelhoria.length === 0 && registrosTrajeto.length === 0) {
-                alert("NENHUM PONTO OU REGISTRO ENCONTRADO PARA GERAR O RELATÓRIO.");
-                return;
-            }
-
-            let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
-            relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO TOTAL: ${formatarTempo(segundosGravados)}\n\n`;
-            relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
-
-            let contadorItem = 1;
-            if (registrosTrajeto.length > 0) {
-                registrosTrajeto.forEach((ponto) => {
-                    relatorioFormal += `${contadorItem}. ÀS ${ponto.hora} - LOCAL: ${(ponto.rua || 'N/A').toUpperCase()}.\n`;
-                    contadorItem++;
-                });
-            } else {
-                relatorioFormal += `1. NENHUM REGISTRO DE TRAJETO CAPTURADO.\n`;
-            }
-
-            if (pontosDeMelhoria.length > 0) {
-                relatorioFormal += `\nALTERAÇÕES DOS MEMBROS DA US (PONTOS MARCADOS):\n`;
-                pontosDeMelhoria.forEach((pm) => {
-                    relatorioFormal += `• ÀS ${pm.hora} - ${(pm.rua || 'N/A').toUpperCase()} - ${(pm.comentario || 'OCORRÊNCIA').toUpperCase()}.\n`;
-                });
-            } else {
-                relatorioFormal += `\nNENHUM PONTO DE MARCADA ESPECÍFICA REGISTRADO.\n`;
-            }
-
-            textoRelatorioPronto = relatorioFormal;
-            textoRelatorioVisivel.textContent = relatorioFormal;
-            painelRelatorio.style.display = "block";
-            salvarEstadoLocal();
-
-            instructionsDiv.innerHTML = `📋 RELATÓRIO GERADO COM SUCESSO A PARTIR DOS MARCADORES.`;
-            falarTexto("Relatório gerado.");
             
-            // Rolar suavemente para o painel de relatório para fácil visualização
-            painelRelatorio.scrollIntoView({ behavior: 'smooth' });
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            const coordAtual = [ultimaLat, ultimaLon];
+
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                const nota = prompt(`LOCAL: ${nomeRua} ÀS ${horaAtual}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
+                if (nota !== null) {
+                    const notaUpper = nota.toUpperCase();
+                    pontosDeMelhoria.push({ hora: horaAtual, rua: nomeRua, coordenadas: coordAtual, comentario: notaUpper });
+                    salvarEstadoLocal();
+
+                    const m = L.marker(coordAtual).addTo(map).bindPopup(`<b>${nomeRua}</b><br>${notaUpper}`).openPopup();
+                    marcadoresMelhoriaLayers.push(m);
+                    falarTexto("Ponto marcado.");
+                }
+            });
         });
 
         btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
