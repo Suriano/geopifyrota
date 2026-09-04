@@ -250,6 +250,7 @@
         let watchId = null;
         let tempoGravacaoInterval = null;
         let segundosGravados = 0;
+        let wakeLock = null; // Variável para controlar o bloqueio de tela
 
         // Configurações atualizadas: Distância mínima de 100 metros
         const distanciaMinimaMetros = 100; 
@@ -388,6 +389,38 @@
             utterance.rate = 1.05;
             window.speechSynthesis.speak(utterance);
         }
+
+        // Função para solicitar o bloqueio de tela (não deixar desligar)
+        async function solicitarWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('Wake Lock ativo: a tela não irá desligar.');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        // Função para liberar o bloqueio de tela
+        async function liberarWakeLock() {
+            if (wakeLock !== null) {
+                try {
+                    await wakeLock.release();
+                    wakeLock = null;
+                    console.log('Wake Lock liberado.');
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            }
+        }
+
+        // Reativar o Wake Lock caso a aba volte a ficar visível e esteja gravando
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && isGravando) {
+                await solicitarWakeLock();
+            }
+        });
 
         // Função para emitir alerta sonoro em modo de espera/salvamento (Beep via AudioContext)
         function emitirSomSalvamento() {
@@ -692,6 +725,7 @@
 
                 if (isGravando) {
                     btnGravar.classList.add('gravando');
+                    solicitarWakeLock(); // Solicita bloqueio de tela se restaurar gravando
                     tempoGravacaoInterval = setInterval(() => {
                         segundosGravados++;
                         btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
@@ -719,6 +753,7 @@
             if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
                 if (isGravando) {
                     clearInterval(tempoGravacaoInterval);
+                    liberarWakeLock(); // Libera bloqueio se limpar durante gravação
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
@@ -893,6 +928,8 @@
                 }
 
                 btnGravar.classList.add('gravando');
+                solicitarWakeLock(); // Solicita não deixar a tela desligar ao iniciar gravação
+                
                 tempoGravacaoInterval = setInterval(() => {
                     segundosGravados++;
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
@@ -908,6 +945,8 @@
             } else {
                 isGravando = false;
                 clearInterval(tempoGravacaoInterval);
+                liberarWakeLock(); // Libera o bloqueio de tela ao encerrar a gravação
+                
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
