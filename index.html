@@ -202,7 +202,7 @@
 
         <button id="btn-gravar">🔴 GRAVAR ROTA</button>
         <button id="btn-marcar">⭐ MARCAR PONTO</button>
-        <button id="btn-relatorio">📋 GERAR RELATÓRIO</button>
+        <button id="btn-relatorio">💾 SALVAR RELATÓRIO</button>
         <button id="btn-importar">📂 ABRIR</button>
         <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
         <input type="file" id="input-json" style="display: none;" />
@@ -670,7 +670,7 @@
 
                 let deveSalvar = false;
 
-                if (!isGravando) return; // Se não estiver gravando via rota contínua, não adiciona pontos automáticos no trajeto
+                if (!isGravando) return; 
 
                 if (!ultimaCoordenadaSalva) {
                     deveSalvar = true;
@@ -784,8 +784,62 @@
             inputJson.click();
         });
 
-        btnRelatorio.addEventListener('click', function() {
+        // Botão para Salvar Relatório com escolha de diretório (File System Access API)
+        btnRelatorio.addEventListener('click', async function() {
             atualizarPainelRelatorioDinamico();
+            
+            if (emModoEdicao) {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+            }
+
+            if (!textoRelatorioPronto) {
+                alert("Não há dados de relatório para salvar.");
+                return;
+            }
+
+            const nomeSugestao = `relatorio_servico_${new Date().toISOString().slice(0,10)}.txt`;
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const options = {
+                        suggestedName: nomeSugestao,
+                        types: [{
+                            description: 'Arquivo de Texto',
+                            accept: { 'text/plain': ['.txt'] },
+                        }],
+                    };
+                    const handle = await window.showSaveFilePicker(options);
+                    const writable = await handle.createWritable();
+                    await writable.write(textoRelatorioPronto);
+                    await writable.close();
+                    
+                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO COM SUCESSO!";
+                    falarTexto("Relatório salvo com sucesso.");
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error("Erro ao salvar arquivo via File System Access API:", err);
+                    } else {
+                        return; // Usuário cancelou a janela
+                    }
+                }
+            }
+
+            // Fallback para navegadores que não suportam showSaveFilePicker
+            const dataStr = "data:text/plain;charset=utf-8," + encodeURIComponent(textoRelatorioPronto);
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", nomeSugestao);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
             instructionsDiv.innerHTML = "📋 RELATÓRIO GERADO COM SUCESSO!";
             falarTexto("Relatório gerado.");
         });
@@ -1010,7 +1064,6 @@
 
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
             
-            // Se houver uma rua atual mapeada, usa ela. Senão busca o endereço por reverse geocode ou usa coordenada genérica
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 const nota = prompt(`LOCAL: ${ruaEncontrada} ÀS ${horaAtual}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
                 if (nota !== null) {
