@@ -186,7 +186,7 @@
 <body>
 
     <div id="header">
-        <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
+        <h2>RELATÓRIOooioo DE SERVIÇO OPERACIONAL</h2>
         <small style="color: #bdc3c7;">ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
     </div>
 
@@ -250,9 +250,8 @@
         let watchId = null;
         let tempoGravacaoInterval = null;
         let segundosGravados = 0;
-        let wakeLock = null; // Variável para controlar o bloqueio de tela
+        let wakeLock = null;
 
-        // Configurações atualizadas: Distância mínima de 100 metros
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
         let ultimaRuaSalva = "";
@@ -282,7 +281,7 @@
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
 
-        // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML
+        // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML[cite: 3]
         const dadosSetoresKML = [
             {
                 nome: "101",
@@ -358,7 +357,7 @@
             }
         ];
 
-        // Renderizar os setores no mapa
+        // Renderizar os setores no mapa[cite: 3]
         dadosSetoresKML.forEach(setor => {
             if (setor.coordenadas && setor.coordenadas.length > 0) {
                 const polygon = L.polygon(setor.coordenadas, {
@@ -390,39 +389,33 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Função para solicitar o bloqueio de tela (não deixar desligar)
         async function solicitarWakeLock() {
             if ('wakeLock' in navigator) {
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock ativo: a tela não irá desligar.');
                 } catch (err) {
                     console.error(`${err.name}, ${err.message}`);
                 }
             }
         }
 
-        // Função para liberar o bloqueio de tela
         async function liberarWakeLock() {
             if (wakeLock !== null) {
                 try {
                     await wakeLock.release();
                     wakeLock = null;
-                    console.log('Wake Lock liberado.');
                 } catch (err) {
                     console.error(`${err.name}, ${err.message}`);
                 }
             }
         }
 
-        // Reativar o Wake Lock caso a aba volte a ficar visível e esteja gravando
         document.addEventListener('visibilitychange', async () => {
             if (wakeLock !== null && document.visibilityState === 'visible' && isGravando) {
                 await solicitarWakeLock();
             }
         });
 
-        // Função para emitir alerta sonoro em modo de espera/salvamento (Beep via AudioContext)
         function emitirSomSalvamento() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -430,7 +423,7 @@
                 const gainNode = audioCtx.createGain();
                 
                 oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Frequência do bipe
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
                 
                 gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
@@ -643,7 +636,6 @@
                         ultimaLat, ultimaLon
                     );
 
-                    // Requisito: Apenas gravar quando mudar de local/rua E alterar 100 metros do último ponto
                     if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
                         deveSalvar = true;
                     }
@@ -660,7 +652,6 @@
                     });
                     salvarEstadoLocal();
 
-                    // Emite som no celular indicando que salvou o ponto
                     emitirSomSalvamento();
 
                     if (trackLayer) map.removeLayer(trackLayer);
@@ -725,7 +716,7 @@
 
                 if (isGravando) {
                     btnGravar.classList.add('gravando');
-                    solicitarWakeLock(); // Solicita bloqueio de tela se restaurar gravando
+                    solicitarWakeLock();
                     tempoGravacaoInterval = setInterval(() => {
                         segundosGravados++;
                         btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
@@ -753,7 +744,7 @@
             if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
                 if (isGravando) {
                     clearInterval(tempoGravacaoInterval);
-                    liberarWakeLock(); // Libera bloqueio se limpar durante gravação
+                    liberarWakeLock();
                 }
                 localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
@@ -928,7 +919,7 @@
                 }
 
                 btnGravar.classList.add('gravando');
-                solicitarWakeLock(); // Solicita não deixar a tela desligar ao iniciar gravação
+                solicitarWakeLock();
                 
                 tempoGravacaoInterval = setInterval(() => {
                     segundosGravados++;
@@ -945,7 +936,7 @@
             } else {
                 isGravando = false;
                 clearInterval(tempoGravacaoInterval);
-                liberarWakeLock(); // Libera o bloqueio de tela ao encerrar a gravação
+                liberarWakeLock();
                 
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
