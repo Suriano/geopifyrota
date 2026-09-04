@@ -48,6 +48,7 @@
             background-color: #2c3e50;
         }
         
+        /* Estilos do Campo de Destino com Autocompletar */
         #btn-voz-container {
             position: relative;
             display: inline-block;
@@ -115,6 +116,7 @@
             font-size: 14px;
         }
 
+        /* Painel Formal Estilo RSO */
         #painel-relatorio {
             display: none;
             background: #ffffff;
@@ -191,6 +193,7 @@
     <div id="controls">
         <button id="btn-localizacao">📍 LOCAL</button>
         
+        <!-- Campo de texto com autocomplete de Destino -->
         <div id="btn-voz-container">
             <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
             <div id="sugestoes-destino"></div>
@@ -205,6 +208,7 @@
     
     <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
 
+    <!-- Painel Formal de Exibição com Edição -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO DE OPERAÇÕES:</strong>
@@ -218,6 +222,7 @@
 
     <div id="map"></div>
 
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
@@ -245,8 +250,8 @@
         let watchId = null;
         let tempoGravacaoInterval = null;
         let segundosGravados = 0;
-        let wakeLock = null; // Controle para evitar suspensão da tela
 
+        // Configurações atualizadas: Distância mínima de 100 metros
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
         let ultimaRuaSalva = "";
@@ -276,7 +281,7 @@
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
 
-        // Dados dos setores (mantidos igual ao seu código)
+        // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML
         const dadosSetoresKML = [
             {
                 nome: "101",
@@ -285,9 +290,74 @@
                 coordenadas: [
                     [-23.6966454, -46.5507877], [-23.6977212, -46.5511418], [-23.6984236, -46.5514153], [-23.6987134, -46.5515655], [-23.6994564, -46.551984], [-23.7000065, -46.552212], [-23.7006205, -46.5525097], [-23.7009717, -46.5526948], [-23.7013057, -46.5528637], [-23.7015022, -46.5529388], [-23.7018657, -46.5529844], [-23.7020474, -46.5529764], [-23.7022169, -46.5529388], [-23.702627, -46.5527859], [-23.7032398, -46.552499], [-23.7034584, -46.5524024], [-23.7038219, -46.5522334], [-23.7041436, -46.5521288], [-23.7043057, -46.5520993], [-23.7045562, -46.5520671], [-23.7046495, -46.5520698], [-23.704873, -46.5520993], [-23.7050866, -46.5521556], [-23.7051652, -46.5521905], [-23.7052561, -46.5518338], [-23.7053224, -46.5515012], [-23.7053985, -46.5512705], [-23.7056392, -46.5506295], [-23.7058676, -46.5501735], [-23.706015, -46.5499079], [-23.7063858, -46.5491918], [-23.7065602, -46.5488699], [-23.706791, -46.5484166], [-23.7071054, -46.5478346], [-23.707405, -46.5474108], [-23.7076604, -46.5470889], [-23.7079846, -46.5467322], [-23.7084168, -46.5463299], [-23.7087704, -46.5460107], [-23.7091978, -46.54567], [-23.70928, -46.5456017], [-23.7097528, -46.5451873], [-23.7085249, -46.5454474], [-23.7084757, -46.5454635], [-23.7084242, -46.5454608], [-23.7083922, -46.545434], [-23.70838, -46.5453831], [-23.7086256, -46.5448305], [-23.7077881, -46.5444121], [-23.7074271, -46.5442458], [-23.7073608, -46.544227], [-23.706489, -46.5437603], [-23.7064251, -46.5437228], [-23.7046642, -46.5428269], [-23.7037703, -46.5424514], [-23.7036991, -46.5424138], [-23.7034731, -46.5422878], [-23.7033896, -46.5422636], [-23.7030581, -46.54221], [-23.70295, -46.5421751], [-23.7028247, -46.5421188], [-23.702724, -46.5420571], [-23.7024981, -46.541974], [-23.7024662, -46.542041], [-23.701808, -46.543704], [-23.7017687, -46.5438166], [-23.7016778, -46.5442565], [-23.7016385, -46.5444577], [-23.7015305, -46.5447232], [-23.7009729, -46.5458793], [-23.7005456, -46.5457398], [-23.7000249, -46.5456003], [-23.6997007, -46.5455145], [-23.6991702, -46.5454233], [-23.6989345, -46.5453804], [-23.6981191, -46.5451604], [-23.6980601, -46.5454233], [-23.6979864, -46.5461046], [-23.6978784, -46.5470863], [-23.6978342, -46.5473974], [-23.69779, -46.5480465], [-23.6977507, -46.5484756], [-23.697677, -46.5487653], [-23.6975051, -46.5491086], [-23.6968714, -46.5505195], [-23.6968174, -46.5506214], [-23.6966454, -46.5507877]
                 ]
+            },
+            {
+                nome: "102",
+                cor: "#E65100",
+                descricao: "Setor 102",
+                coordenadas: [
+                    [-23.7084143, -46.561472], [-23.7080164, -46.5609604], [-23.7070046, -46.5596085], [-23.7060861, -46.5585035], [-23.7054378, -46.5578222], [-23.7053788, -46.5556221], [-23.7053346, -46.5554135], [-23.705315, -46.5546035], [-23.7052904, -46.5537452], [-23.7052904, -46.5531712], [-23.7053101, -46.5524356], [-23.7051627, -46.5521985], [-23.7048705, -46.5521073], [-23.7045537, -46.5520751], [-23.7041411, -46.5521368], [-23.7038194, -46.5522414], [-23.7035221, -46.5523773], [-23.7030997, -46.5525704], [-23.7022144, -46.5529468], [-23.7020781, -46.5529727], [-23.7018632, -46.5529924], [-23.7014997, -46.5529468], [-23.7013032, -46.5528717], [-23.7009692, -46.5527028], [-23.7003834, -46.5524041], [-23.6994256, -46.5526348], [-23.6994698, -46.5529137], [-23.6995484, -46.553198], [-23.6996663, -46.5534233], [-23.6993372, -46.5533965], [-23.6992733, -46.5534609], [-23.6990768, -46.5536326], [-23.6989786, -46.5537881], [-23.6989049, -46.5538686], [-23.6988312, -46.5540993], [-23.6988705, -46.5543514], [-23.6988607, -46.5544104], [-23.6989098, -46.55492], [-23.6988951, -46.5551131], [-23.6988754, -46.5551882], [-23.6988239, -46.5552741], [-23.6986569, -46.5554296], [-23.6982442, -46.5558078], [-23.6981681, -46.5559688], [-23.6981214, -46.5560975], [-23.6981043, -46.5562209], [-23.6981141, -46.5563389], [-23.6981313, -46.5568834], [-23.6981264, -46.5571999], [-23.6980625, -46.5575084], [-23.6979495, -46.5580743], [-23.6978046, -46.5587583], [-23.6977923, -46.558836], [-23.6977088, -46.5594878], [-23.6976867, -46.5596541], [-23.6975688, -46.5604427], [-23.6975369, -46.5607243], [-23.6974092, -46.5615102], [-23.6974166, -46.5616417], [-23.6977973, -46.561623], [-23.6986889, -46.5614298], [-23.6990351, -46.5613279], [-23.6994919, -46.5612527], [-23.6998161, -46.5613171], [-23.700042, -46.5615424], [-23.7009262, -46.561419], [-23.7022868, -46.561419], [-23.7035835, -46.561419], [-23.7052585, -46.5614727], [-23.7084143, -46.561472]
+                ]
+            },
+            {
+                nome: "104",
+                cor: "#C5E1A5",
+                descricao: "Setor 104",
+                coordenadas: [
+                    [-23.712982, -46.5429518], [-23.7124614, -46.5432897], [-23.7111107, -46.5442017], [-23.7105704, -46.5445987], [-23.7097749, -46.5451873], [-23.7081883, -46.546562], [-23.7076873, -46.5470395], [-23.7073484, -46.5475437], [-23.707093, -46.5478763], [-23.7069161, -46.548225], [-23.7065823, -46.5488699], [-23.7064079, -46.5491918], [-23.7060371, -46.5499079], [-23.7057275, -46.550521], [-23.7055605, -46.5508911], [-23.7053445, -46.5515012], [-23.7052782, -46.5518338], [-23.7051873, -46.5521905], [-23.7056194, -46.5524093], [-23.7063857, -46.5527204], [-23.7066804, -46.552774], [-23.7071273, -46.5528062], [-23.7078297, -46.5527097], [-23.7083209, -46.5525595], [-23.7089987, -46.5523985], [-23.7095144, -46.5523395], [-23.7102217, -46.5522912], [-23.710983, -46.5522537], [-23.7115019, -46.5522365], [-23.7121944, -46.552148], [-23.7123908, -46.5520836], [-23.7127936, -46.5519253], [-23.7130539, -46.5518556], [-23.7132307, -46.5518154], [-23.7137317, -46.5517671], [-23.7139036, -46.5517617], [-23.7145151, -46.5517537], [-23.7150676, -46.5517832], [-23.7154654, -46.5517939], [-23.7159639, -46.5517993], [-23.7161604, -46.5517993], [-23.7165287, -46.5517376], [-23.7169683, -46.551574], [-23.7170641, -46.551523], [-23.7171574, -46.5514908], [-23.7171697, -46.5513191], [-23.7172605, -46.5504984], [-23.7174324, -46.5489642], [-23.7174447, -46.5487684], [-23.7174496, -46.5487147], [-23.7174742, -46.5486557], [-23.7175061, -46.5482427], [-23.7176166, -46.547674], [-23.7176117, -46.5475614], [-23.7175822, -46.5474139], [-23.7175503, -46.5473334], [-23.7174644, -46.5472073], [-23.717376, -46.5471135], [-23.7172753, -46.5470223], [-23.7177762, -46.5463973], [-23.7177296, -46.5463544], [-23.7176191, -46.5462364], [-23.7172704, -46.5459226], [-23.7170936, -46.5457804], [-23.7154654, -46.544324], [-23.7144463, -46.5434201], [-23.7141762, -46.5436588], [-23.7140841, -46.5435743], [-23.7131884, -46.5428045], [-23.712982, -46.5429518]
+                ]
+            },
+            {
+                nome: "105",
+                cor: "#9C27B0",
+                descricao: "Setor 105",
+                coordenadas: [
+                    [-23.6966454, -46.5507501], [-23.6966954, -46.5506558], [-23.6960916, -46.5504584], [-23.6959201, -46.5503147], [-23.6954829, -46.550186], [-23.6949081, -46.5499767], [-23.6942843, -46.5495744], [-23.6932184, -46.5487911], [-23.692511, -46.5483835], [-23.6923391, -46.5489521], [-23.6921279, -46.5493598], [-23.692069, -46.549966], [-23.6919707, -46.5504595], [-23.6918626, -46.5507492], [-23.6917987, -46.5512749], [-23.691897, -46.5514305], [-23.6920787, -46.551688], [-23.6920394, -46.5521708], [-23.6911307, -46.5520903], [-23.6911159, -46.5523424], [-23.6910766, -46.5524873], [-23.6904086, -46.5536782], [-23.6900942, -46.5542682], [-23.689711, -46.5550085], [-23.6901924, -46.5554377], [-23.6909096, -46.5559956], [-23.6917742, -46.5565535], [-23.6918715, -46.5563971], [-23.6924807, -46.5568263], [-23.6931594, -46.5555986], [-23.6935721, -46.5548798], [-23.6940378, -46.5543372], [-23.6943915, -46.5540958], [-23.695311, -46.5537103], [-23.6966217, -46.5531946], [-23.6966953, -46.5529317], [-23.6968132, -46.5529424], [-23.6970883, -46.5531731], [-23.6981931, -46.5533036], [-23.6996663, -46.5534233], [-23.6995484, -46.553198], [-23.6994698, -46.5529137], [-23.6994256, -46.5526348], [-23.7004392, -46.5524121], [-23.7003834, -46.5524041], [-23.6995649, -46.5520366], [-23.6987134, -46.5515655], [-23.6982681, -46.5513393], [-23.6966454, -46.5507501]
+                ]
+            },
+            {
+                nome: "106",
+                cor: "#01579B",
+                descricao: "Setor 106",
+                coordenadas: [
+                    [-23.7213189, -46.5380893], [-23.7213484, -46.5381905], [-23.7212133, -46.538316], [-23.7211728, -46.5384296], [-23.7211569, -46.5384977], [-23.7211335, -46.5386164], [-23.7211581, -46.5387095], [-23.7211765, -46.5387444], [-23.721201, -46.5387987], [-23.7212059, -46.5389168], [-23.7211225, -46.539012], [-23.7209775, -46.5392373], [-23.7209002, -46.5393554], [-23.7208327, -46.539519], [-23.7207836, -46.5397295], [-23.7207468, -46.5399937], [-23.7207345, -46.5402753], [-23.7207148, -46.5403826], [-23.7206461, -46.5406106], [-23.7205945, -46.5407662], [-23.7204202, -46.540978], [-23.7203379, -46.5410302], [-23.7202507, -46.5410693], [-23.7198357, -46.5411498], [-23.719455, -46.5412248], [-23.7188976, -46.5412648], [-23.7185575, -46.541277], [-23.7183747, -46.5412811], [-23.7182175, -46.5413214], [-23.7180382, -46.5413697], [-23.7177877, -46.5414742], [-23.7175913, -46.5415681], [-23.7173873, -46.5416697], [-23.7169626, -46.5418751], [-23.7165328, -46.5420778], [-23.7163536, -46.5420831], [-23.716157, -46.5420506], [-23.7157421, -46.5419571], [-23.7152485, -46.5419061], [-23.7148309, -46.5419272], [-23.7145192, -46.5420027], [-23.7142392, -46.5421153], [-23.7138683, -46.5423135], [-23.7136424, -46.5424583], [-23.7131816, -46.5427978], [-23.7140804, -46.5435649], [-23.7141541, -46.5436588], [-23.7143791, -46.5434346], [-23.7150274, -46.5439335], [-23.715607, -46.5444968], [-23.7163437, -46.5451298], [-23.7169085, -46.5456394], [-23.7173407, -46.5460256], [-23.7177541, -46.5463973], [-23.7172965, -46.547018], [-23.7174094, -46.5471522], [-23.7175911, -46.547415], [-23.7175862, -46.5477798], [-23.7174684, -46.5483806], [-23.7174521, -46.5486557], [-23.7171574, -46.5514908], [-23.7170641, -46.551523], [-23.7170509, -46.5517334], [-23.7170509, -46.553053], [-23.7170705, -46.5542171], [-23.7171393, -46.5562341], [-23.7171491, -46.5571622], [-23.7173259, -46.5576503], [-23.7179693, -46.5586803], [-23.7181363, -46.5585408], [-23.7188239, -46.5577952], [-23.7198307, -46.5567437], [-23.7206754, -46.5558264], [-23.7214514, -46.5549896], [-23.7221193, -46.5542654], [-23.7228756, -46.5534339], [-23.7244865, -46.5517549], [-23.724349, -46.5515939], [-23.7236651, -46.5508268], [-23.7235295, -46.550631], [-23.7234159, -46.5504352], [-23.723295, -46.550179], [-23.7232575, -46.5500194], [-23.7231703, -46.5497204], [-23.7230598, -46.5495031], [-23.7229088, -46.5493757], [-23.7224705, -46.5493904], [-23.7222562, -46.5494072], [-23.7221476, -46.5493824], [-23.7219277, -46.5492684], [-23.7217657, -46.5491316], [-23.7216405, -46.5487615], [-23.7216472, -46.5486186], [-23.7217006, -46.5484383], [-23.7218173, -46.5479916], [-23.7219008, -46.5476618], [-23.7221556, -46.5466422], [-23.7224349, -46.5456388], [-23.7225097, -46.5452438], [-23.7225392, -46.5448844], [-23.7224974, -46.5442822], [-23.7224103, -46.5433542], [-23.7222765, -46.5419447], [-23.722258, -46.541828], [-23.7222838, -46.5417757], [-23.7222912, -46.5414525], [-23.7222765, -46.5412513], [-23.7222482, -46.5409053], [-23.722204, -46.5404989], [-23.7221537, -46.5399423], [-23.7221291, -46.5398472], [-23.7220873, -46.5396835], [-23.722037, -46.5395052], [-23.7219143, -46.5389929], [-23.7218762, -46.5388353], [-23.7219302, -46.5387447], [-23.7219646, -46.5386281], [-23.7219744, -46.5384806], [-23.7219352, -46.5383397], [-23.7218774, -46.5382298], [-23.7217718, -46.5381346], [-23.7216712, -46.5380729], [-23.7215411, -46.5380501], [-23.7214809, -46.5380476], [-23.7213189, -46.5380893]
+                ]
+            },
+            {
+                nome: "107",
+                cor: "#0288D1",
+                descricao: "Setor 107",
+                coordenadas: [
+                    [-23.7122844, -46.5614732], [-23.7122331, -46.5604689], [-23.7121742, -46.5586503], [-23.7121936, -46.5579837], [-23.7120219, -46.5578188], [-23.7118743, -46.5575679], [-23.7117957, -46.5573373], [-23.7107594, -46.5573775], [-23.7106685, -46.5557521], [-23.7107422, -46.5557467], [-23.710961, -46.5554531], [-23.7112063, -46.5551057], [-23.7112235, -46.555044], [-23.7111427, -46.5548845], [-23.7106243, -46.5542152], [-23.7105533, -46.554053], [-23.7105435, -46.5532054], [-23.7104895, -46.552905], [-23.7104698, -46.5524973], [-23.7104892, -46.5522732], [-23.7090258, -46.5523954], [-23.7085494, -46.5524973], [-23.7080386, -46.5526475], [-23.7078076, -46.5527097], [-23.7071052, -46.5528062], [-23.7066436, -46.5528246], [-23.7063293, -46.5527387], [-23.7057644, -46.5525081], [-23.7051652, -46.5521905], [-23.7053126, -46.5524276], [-23.705288, -46.5532537], [-23.7053371, -46.555201], [-23.7053813, -46.5556141], [-23.7054108, -46.5562417], [-23.7054304, -46.5575935], [-23.705401, -46.557733], [-23.7067321, -46.5592672], [-23.7072257, -46.5599136], [-23.7084168, -46.561464], [-23.7109438, -46.5614532], [-23.7122844, -46.5614732]
+                ]
+            },
+            {
+                nome: "109",
+                cor: "#B2EBF2",
+                descricao: "Setor 109",
+                coordenadas: [
+                    [-23.7179693, -46.558691], [-23.7174881, -46.5579354], [-23.7173236, -46.557643], [-23.7171491, -46.5571729], [-23.7170976, -46.5548481], [-23.7170633, -46.5540274], [-23.7170485, -46.5532093], [-23.7170412, -46.5527855], [-23.7170436, -46.5518226], [-23.7170559, -46.5516965], [-23.7170608, -46.5515571], [-23.7165066, -46.5517483], [-23.7161383, -46.55181], [-23.7160466, -46.5518172], [-23.7155874, -46.5518038], [-23.7152362, -46.5517931], [-23.715084, -46.5517743], [-23.7141066, -46.551769], [-23.7137505, -46.551769], [-23.7133428, -46.5518199], [-23.7131439, -46.5518441], [-23.7129278, -46.5518977], [-23.7127338, -46.5519513], [-23.7121723, -46.5521587], [-23.7120929, -46.5521713], [-23.7118031, -46.5522035], [-23.7110614, -46.5522678], [-23.7104892, -46.5522839], [-23.7104647, -46.5524181], [-23.7104868, -46.5526487], [-23.7105433, -46.5532495], [-23.7105433, -46.5536546], [-23.7105457, -46.5540301], [-23.7106243, -46.5542259], [-23.7108429, -46.5545021], [-23.7111842, -46.554942], [-23.7112235, -46.5550547], [-23.7112063, -46.5551164], [-23.71114, -46.5552263], [-23.7110737, -46.5553014], [-23.7107422, -46.5557574], [-23.7106685, -46.5557628], [-23.7107594, -46.5573882], [-23.7117957, -46.557348], [-23.711835, -46.5574633], [-23.7118743, -46.5575786], [-23.7119603, -46.5577101], [-23.7120634, -46.5578468], [-23.7121936, -46.5579944], [-23.7121764, -46.558099], [-23.7121788, -46.5585308], [-23.712223, -46.5600328], [-23.7122574, -46.5608912], [-23.7122844, -46.5614839], [-23.712771, -46.5614904], [-23.713876, -46.5614529], [-23.7146815, -46.5613456], [-23.7150695, -46.5611686], [-23.7156393, -46.5608843], [-23.7161009, -46.5605302], [-23.7165675, -46.5601493], [-23.7174172, -46.5592857], [-23.7179693, -46.558691]
+                ]
+            },
+            {
+                nome: "110",
+                cor: "#FFCC80",
+                descricao: "Setor 110",
+                coordenadas: [
+                    [-23.6974166, -46.5616417], [-23.6974092, -46.5615102], [-23.697554, -46.5605705], [-23.6975663, -46.5604123], [-23.6977996, -46.5587869], [-23.6981264, -46.5571999], [-23.6981164, -46.5562817], [-23.6981299, -46.5560832], [-23.6982442, -46.5558078], [-23.6988239, -46.5552741], [-23.6988754, -46.5551882], [-23.6988901, -46.5550935], [-23.6989098, -46.55492], [-23.6988607, -46.5544104], [-23.6988705, -46.5543514], [-23.6988312, -46.5540993], [-23.6989049, -46.5538686], [-23.6989786, -46.5537881], [-23.6990768, -46.5536326], [-23.6991236, -46.5535907], [-23.6992455, -46.5534848], [-23.6992617, -46.55347], [-23.6992854, -46.5534489], [-23.6993372, -46.5533965], [-23.6979872, -46.5532965], [-23.6976679, -46.5532482], [-23.69755, -46.5532536], [-23.6970883, -46.5531731], [-23.6968132, -46.5529424], [-23.6966953, -46.5529317], [-23.6966217, -46.5531946], [-23.696322, -46.5533072], [-23.6956196, -46.5535808], [-23.6950399, -46.5538383], [-23.6943915, -46.5540958], [-23.6940378, -46.5543372], [-23.6938315, -46.5545893], [-23.6934189, -46.5551204], [-23.693247, -46.5554101], [-23.6927852, -46.5562684], [-23.6924807, -46.5568263], [-23.6918715, -46.5563971], [-23.6909363, -46.5581737], [-23.6905457, -46.5588926], [-23.6902854, -46.5593566], [-23.6901675, -46.5599064], [-23.6902878, -46.5599547], [-23.6905212, -46.5600593], [-23.6906391, -46.5602176], [-23.6907324, -46.5603812], [-23.6907472, -46.5605663], [-23.6914815, -46.5605904], [-23.6920096, -46.5605394], [-23.6923216, -46.5605421], [-23.692857, -46.5605958], [-23.6939033, -46.5607245], [-23.6947998, -46.560813], [-23.6949914, -46.5608264], [-23.6953499, -46.5608774], [-23.6956938, -46.5609847], [-23.6960426, -46.5611483], [-23.6964208, -46.5613226], [-23.6969267, -46.561564], [-23.6971085, -46.5616043], [-23.6974166, -46.5616417]
+                ]
+            },
+            {
+                nome: "111",
+                cor: "#CE93D8",
+                descricao: "Setor 111",
+                coordenadas: [
+                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.69266, -46.5473642]
+                ]
             }
         ];
 
+        // Renderizar os setores no mapa
         dadosSetoresKML.forEach(setor => {
             if (setor.coordenadas && setor.coordenadas.length > 0) {
                 const polygon = L.polygon(setor.coordenadas, {
@@ -296,6 +366,7 @@
                     fillColor: setor.cor,
                     fillOpacity: 0.35
                 }).addTo(map);
+
                 polygon.bindPopup(`<b>SETOR: ${setor.nome}</b><br>${setor.descricao}`);
             }
         });
@@ -318,6 +389,7 @@
             window.speechSynthesis.speak(utterance);
         }
 
+        // Função para emitir alerta sonoro em modo de espera/salvamento (Beep via AudioContext)
         function emitirSomSalvamento() {
             try {
                 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -325,7 +397,8 @@
                 const gainNode = audioCtx.createGain();
                 
                 oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime); // Frequência do bipe
+                
                 gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                 gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
                 
@@ -335,37 +408,9 @@
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + 0.3);
             } catch (e) {
-                console.log("Áudio bloqueado.", e);
+                console.log("Áudio bloqueado ou não suportado sem interação prévia.", e);
             }
         }
-
-        // Função para manter a tela ativa via Wake Lock API
-        async function ativarWakeLock() {
-            if ('wakeLock' in navigator) {
-                try {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Wake Lock ativo: a tela não vai apagar.');
-                } catch (err) {
-                    console.error('Erro ao ativar Wake Lock:', err);
-                }
-            }
-        }
-
-        function liberarWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release().then(() => {
-                    wakeLock = null;
-                    console.log('Wake Lock liberado.');
-                });
-            }
-        }
-
-        // Reativar Wake Lock se o usuário voltar para a aba e estiver gravando
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible' && isGravando) {
-                await ativarWakeLock();
-            }
-        });
 
         function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
             const R = 6371e3;
@@ -393,9 +438,145 @@
                     }
                     if (callback) callback(nomeFormatado.toUpperCase());
                 })
-                .catch(() => {
+                .catch(err => {
                     if (callback) callback("VIA NÃO IDENTIFICADA");
                 });
+        }
+
+        function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
+            if (ultimaLat === null || ultimaLon === null) {
+                alert("Aguarde a obtenção da sua localização atual antes de traçar a rota.");
+                return;
+            }
+
+            const urlRouting = `https://api.geoapify.com/v1/routing?waypoints=${ultimaLat},${ultimaLon}|${destinoLat},${destinoLon}&mode=drive&apiKey=${apiKey}`;
+
+            instructionsDiv.innerHTML = `🔄 CALCULANDO ROTA...`;
+
+            fetch(urlRouting)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        const routeFeature = data.features[0];
+                        
+                        if (routingLayer) {
+                            map.removeLayer(routingLayer);
+                        }
+
+                        routingLayer = L.geoJSON(routeFeature, {
+                            style: {
+                                color: '#3498db',
+                                weight: 6,
+                                opacity: 0.8
+                            }
+                        }).addTo(map);
+
+                        map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+
+                        if (markerDestino) map.removeLayer(markerDestino);
+                        markerDestino = L.marker([destinoLat, destinoLon]).addTo(map)
+                            .bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
+
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA ATÉ:</b> ${enderecoFormatado.toUpperCase()}`;
+                        falarTexto("Rota calculada com sucesso.");
+                    } else {
+                        alert("Não foi possível encontrar uma rota para o destino selecionado.");
+                        instructionsDiv.innerHTML = `⚠️ FALHA AO CALCULAR ROTA.`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro na API de Roteamento:", err);
+                    alert("Erro de conexão ao calcular a rota.");
+                });
+        }
+
+        let timeoutAutocomplete = null;
+        inputDestino.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(timeoutAutocomplete);
+
+            if (query.length < 3) {
+                sugestoesDestino.style.display = 'none';
+                sugestoesDestino.innerHTML = '';
+                return;
+            }
+
+            timeoutAutocomplete = setTimeout(() => {
+                let biasParam = ultimaLat && ultimaLon ? `&bias=proximity:${ultimaLon},${ultimaLat}` : '';
+                const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=5&lang=pt${biasParam}&apiKey=${apiKey}`;
+                
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        sugestoesDestino.innerHTML = '';
+                        if (data.features && data.features.length > 0) {
+                            data.features.forEach(feature => {
+                                const props = feature.properties;
+                                const div = document.createElement('div');
+                                div.className = 'sugestao-item';
+                                div.textContent = props.formatted;
+                                
+                                div.addEventListener('click', () => {
+                                    inputDestino.value = props.formatted;
+                                    sugestoesDestino.style.display = 'none';
+                                    
+                                    const destLat = feature.geometry.coordinates[1];
+                                    const destLon = feature.geometry.coordinates[0];
+
+                                    calcularESobrescreverRota(destLat, destLon, props.formatted);
+                                });
+
+                                sugestoesDestino.appendChild(div);
+                            });
+                            sugestoesDestino.style.display = 'block';
+                        } else {
+                            sugestoesDestino.style.display = 'none';
+                        }
+                    })
+                    .catch(err => console.error("Erro no autocompletar:", err));
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('btn-voz-container').contains(e.target)) {
+                sugestoesDestino.style.display = 'none';
+            }
+        });
+
+        async function atualizarContadorGlobal() {
+            try {
+                const res = await fetch('https://api.countapi.xyz/hit/gps-rpm-patrulhamento/visitas');
+                const data = await res.json();
+                if (data && typeof data.value !== 'undefined') {
+                    document.getElementById('contador-visitas').textContent = data.value;
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                let locais = parseInt(localStorage.getItem('gps_rpm_acessos_fallback') || '1');
+                document.getElementById('contador-visitas').textContent = locais;
+                localStorage.setItem('gps_rpm_acessos_fallback', locais + 1);
+            }
+        }
+
+        function centralizarNaMinhaLocalizacao() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition((position) => {
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                origem = [ultimaLat, ultimaLon];
+                map.setView(origem, 16);
+                
+                obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                    ruaAtualNome = nomeRua;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
+                        .bindPopup(`<b>LOCALIZAÇÃO ATUAL</b><br>${ruaAtualNome}`).openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
+                });
+            }, () => {
+                map.setView([-23.5505, -46.6333], 13);
+            }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
         function salvarEstadoLocal() {
@@ -418,6 +599,7 @@
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
+
                 let deveSalvar = false;
 
                 if (!ultimaCoordenadaSalva) {
@@ -428,6 +610,7 @@
                         ultimaLat, ultimaLon
                     );
 
+                    // Requisito: Apenas gravar quando mudar de local/rua E alterar 100 metros do último ponto
                     if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
                         deveSalvar = true;
                     }
@@ -443,6 +626,8 @@
                         coordenadas: novaCoord 
                     });
                     salvarEstadoLocal();
+
+                    // Emite som no celular indicando que salvou o ponto
                     emitirSomSalvamento();
 
                     if (trackLayer) map.removeLayer(trackLayer);
@@ -469,7 +654,7 @@
                 }
 
             }, (err) => {
-                console.error("Erro de GPS:", err);
+                console.error("Erro de GPS no watchPosition:", err);
             }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
         }
 
@@ -497,9 +682,16 @@
                     ultimaCoordenadaSalva = coordsValidas[coordsValidas.length - 1];
                 }
 
+                pontosDeMelhoria.forEach(pm => {
+                    if (pm.coordenadas) {
+                        const m = L.marker(pm.coordenadas).addTo(map)
+                            .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                        marcadoresMelhoriaLayers.push(m);
+                    }
+                });
+
                 if (isGravando) {
                     btnGravar.classList.add('gravando');
-                    ativarWakeLock();
                     tempoGravacaoInterval = setInterval(() => {
                         segundosGravados++;
                         btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
@@ -508,15 +700,182 @@
                     instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO DE ROTA...";
                 }
             } catch (e) {
-                console.error("Erro ao recuperar estado", e);
+                console.error("Erro ao recuperar estado salvo", e);
             }
         }
 
         window.addEventListener('load', () => {
+            atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
             restaurarEstadoLocal();
             iniciarRastreamentoGlobal();
         });
+
+        btnImportar.addEventListener('click', function() {
+            inputJson.click();
+        });
+
+        btnLimpar.addEventListener('click', function() {
+            if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
+                if (isGravando) {
+                    clearInterval(tempoGravacaoInterval);
+                }
+                localStorage.removeItem('gps_rpm_estado_atual');
+                isGravando = false;
+                registrosTrajeto = [];
+                pontosDeMelhoria = [];
+                ultimaCoordenadaSalva = null;
+                ultimaRuaSalva = "";
+                textoRelatorioPronto = "";
+                textoRelatorioVisivel.textContent = "";
+                painelRelatorio.style.display = "none";
+                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.classList.remove('gravando');
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+                if (markerDestino) { map.removeLayer(markerDestino); markerDestino = null; }
+                inputDestino.value = '';
+
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
+                instructionsDiv.innerHTML = "🧹 DADOS LIMPOS. PRONTO PARA NOVO REGISTRO.";
+                falarTexto("Dados limpos.");
+            }
+        });
+
+        inputJson.addEventListener('change', function(event) {
+            const arquivo = event.target.files[0];
+            if (!arquivo) return;
+
+            const leitor = new FileReader();
+            leitor.onload = function(e) {
+                try {
+                    const dados = JSON.parse(e.target.result);
+                    
+                    const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
+                    const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
+
+                    let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
+                    relatorioFormal += `DATA: ${dados.dataInicio || dados.data || 'N/A'} | TEMPO TOTAL: ${dados.tempoTotal || 'N/A'}\n\n`;
+                    relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
+
+                    let contadorItem = 1;
+
+                    if (historico.length > 0) {
+                        historico.forEach((ponto) => {
+                            const hora = ponto.hora || 'N/A';
+                            const rua = (ponto.rua || 'N/A').toUpperCase();
+                            relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
+                            contadorItem++;
+                        });
+                    }
+
+                    if (pontosAtencao.length > 0) {
+                        relatorioFormal += `\nALTERAÇÕES DOS MEMBROS DA US (PONTOS MARCADOS):\n`;
+                        pontosAtencao.forEach((pm) => {
+                            const hora = pm.hora || 'N/A';
+                            const rua = (pm.rua || 'N/A').toUpperCase();
+                            const comentario = (pm.comentario || 'OCORRÊNCIA REGISTRADA').toUpperCase();
+                            relatorioFormal += `• ÀS ${hora} - ${rua} - ${comentario}.\n`;
+                        });
+                    }
+
+                    if (historico.length === 0 && pontosAtencao.length === 0) {
+                        relatorioFormal += `1. NENHUM REGISTRO INFORMADO NESTE ARQUIVO.\n`;
+                    }
+
+                    textoRelatorioPronto = relatorioFormal;
+                    registrosTrajeto = historico;
+                    pontosDeMelhoria = pontosAtencao;
+
+                    emModoEdicao = false;
+                    btnEditar.textContent = "✏️ EDITAR";
+                    btnEditar.style.backgroundColor = "#d35400";
+                    textoRelatorioVisivel.textContent = relatorioFormal;
+                    painelRelatorio.style.display = "block";
+                    salvarEstadoLocal();
+
+                    instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
+                    falarTexto("Relatório carregado com sucesso.");
+
+                    if (trackLayer) map.removeLayer(trackLayer);
+                    marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                    marcadoresMelhoriaLayers = [];
+
+                    const coordsValidas = [];
+                    historico.forEach(item => {
+                        if (item.coordenadas && Array.isArray(item.coordenadas)) {
+                            coordsValidas.push(item.coordenadas);
+                        }
+                    });
+
+                    if (coordsValidas.length > 0) {
+                        trackLayer = L.polyline(coordsValidas, { color: '#2980b9', weight: 5 }).addTo(map);
+                        map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                    }
+
+                    pontosAtencao.forEach(pm => {
+                        if (pm.coordenadas) {
+                            const m = L.marker(pm.coordenadas).addTo(map)
+                                .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                            marcadoresMelhoriaLayers.push(m);
+                        }
+                    });
+
+                } catch (err) {
+                    alert("ERRO AO LER O ARQUIVO JSON.");
+                    console.error(err);
+                } finally {
+                    inputJson.value = '';
+                }
+            };
+            leitor.readAsText(arquivo);
+        });
+
+        btnEditar.addEventListener('click', function() {
+            if (!emModoEdicao) {
+                emModoEdicao = true;
+                btnEditar.textContent = "💾 SALVAR";
+                btnEditar.style.backgroundColor = "#27ae60";
+                
+                textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
+            } else {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+                falarTexto("Alterações salvas.");
+            }
+        });
+
+        btnWhatsapp.addEventListener('click', function() {
+            if (emModoEdicao) {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                salvarEstadoLocal();
+            }
+
+            if (!textoRelatorioPronto) return;
+            const urlWpp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`;
+            window.open(urlWpp, '_blank');
+        });
+
+        function formatarTempo(segundos) {
+            const h = Math.floor(segundos / 3600);
+            const m = Math.floor((segundos % 3600) / 60);
+            const s = segundos % 60;
+            return (h > 0 ? String(h).padStart(2, '0') + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
 
         btnGravar.addEventListener('click', async function() {
             if (!isGravando) {
@@ -534,8 +893,6 @@
                 }
 
                 btnGravar.classList.add('gravando');
-                await ativarWakeLock(); // Evita que a tela apague durante a gravação
-
                 tempoGravacaoInterval = setInterval(() => {
                     segundosGravados++;
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
@@ -543,11 +900,14 @@
                 }, 1000);
 
                 falarTexto("Gravação iniciada.");
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
             } else {
                 isGravando = false;
                 clearInterval(tempoGravacaoInterval);
-                liberarWakeLock(); // Libera o bloqueio da tela
-
                 btnGravar.textContent = "🔴 GRAVAR ROTA";
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
@@ -563,66 +923,55 @@
                 const jsonString = JSON.stringify(dadosRota, null, 2);
                 const nomeSugestao = `viatura_trajeto_${new Date().toISOString().slice(0,10)}.json`;
 
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
-                const downloadAnchor = document.createElement('a');
-                downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", nomeSugestao);
-                document.body.appendChild(downloadAnchor);
-                downloadAnchor.click();
-                downloadAnchor.remove();
+                if (window.showSaveFilePicker) {
+                    try {
+                        const options = {
+                            suggestedName: nomeSugestao,
+                            types: [{
+                                description: 'Arquivo JSON',
+                                accept: { 'application/json': ['.json'] },
+                            }],
+                        };
+                        const handle = await window.showSaveFilePicker(options);
+                        const writable = await handle.createWritable();
+                        await writable.write(jsonString);
+                        await writable.close();
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            console.error("Erro ao salvar arquivo via File System Access API:", err);
+                        }
+                    }
+                } else {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", nomeSugestao);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                }
 
                 localStorage.removeItem('gps_rpm_estado_atual');
             }
         });
 
-        function formatarTempo(segundos) {
-            const h = Math.floor(segundos / 3600);
-            const m = Math.floor((segundos % 3600) / 60);
-            const s = segundos % 60;
-            return (h > 0 ? String(h).padStart(2, '0') + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-        }
-
-        btnLimpar.addEventListener('click', function() {
-            if (confirm("Deseja realmente limpar os dados atuais?")) {
-                if (isGravando) clearInterval(tempoGravacaoInterval);
-                liberarWakeLock();
-                localStorage.removeItem('gps_rpm_estado_atual');
-                isGravando = false;
-                registrosTrajeto = [];
-                pontosDeMelhoria = [];
-                ultimaCoordenadaSalva = null;
-                ultimaRuaSalva = "";
-                textoRelatorioPronto = "";
-                textoRelatorioVisivel.textContent = "";
-                painelRelatorio.style.display = "none";
-                btnGravar.textContent = "🔴 GRAVAR ROTA";
-                btnGravar.classList.remove('gravando');
-                instructionsDiv.innerHTML = "🧹 DADOS LIMPOS.";
-            }
-        });
-
-        // Demais botões (Importar, Editar, WhatsApp, Marcar, etc. mantidos conforme seu script original)
         btnMarcar.addEventListener('click', function() {
             if (!isGravando) { alert("INICIE A GRAVAÇÃO PRIMEIRO!"); return; }
             if (registrosTrajeto.length === 0) { alert("AGUARDANDO SINAL DE GPS."); return; }
             const ultimo = registrosTrajeto[registrosTrajeto.length - 1];
-            const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO:`, "ABORDAGEM REALIZADA");
+            const nota = prompt(`LOCAL: ${ultimo.rua} ÀS ${ultimo.hora}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
             if (nota !== null) {
                 const notaUpper = nota.toUpperCase();
                 pontosDeMelhoria.push({ hora: ultimo.hora, rua: ultimo.rua, coordenadas: ultimo.coordenadas, comentario: notaUpper });
                 salvarEstadoLocal();
+
                 const m = L.marker(ultimo.coordenadas).addTo(map).bindPopup(`<b>${ultimo.rua}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
                 falarTexto("Ponto marcado.");
             }
         });
 
-        btnLocalizacao.addEventListener('click', () => {
-            if (!navigator.geolocation) return;
-            navigator.geolocation.getCurrentPosition((pos) => {
-                map.setView([pos.coords.latitude, pos.coords.longitude], 16);
-            });
-        });
+        btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
     </script>
 </body>
 </html>
