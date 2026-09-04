@@ -10,42 +10,71 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
 
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
             margin: 0;
             padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
             font-family: Arial, sans-serif;
             touch-action: manipulation;
+            background-color: #2c3e50;
         }
+        
+        /* Estrutura Principal Flexbox para Ocupar 100% da Tela Mobile */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh;
+            width: 100vw;
+        }
+
         #header {
-            padding: 10px;
+            padding: 6px 10px;
             background-color: #2c3e50;
             color: white;
             text-align: center;
+            flex-shrink: 0;
+            border-bottom: 1px solid #34495e;
         }
+        #header h2 {
+            margin: 0;
+            font-size: 14px;
+        }
+        #header small {
+            font-size: 10px;
+            color: #bdc3c7;
+        }
+
         #controls {
-            padding: 8px;
+            padding: 6px;
             background-color: #f1f2f6;
             text-align: center;
             display: flex;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             flex-wrap: wrap;
             border-bottom: 1px solid #dcdde1;
             align-items: center;
+            flex-shrink: 0;
         }
+
         button, .autocomplete-container input {
             background-color: #34495e;
             color: white;
             border: none;
-            padding: 8px 12px;
-            font-size: 13px;
-            border-radius: 5px;
+            padding: 8px 10px;
+            font-size: 12px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
-            box-sizing: border-box;
         }
-        button:hover {
-            background-color: #2c3e50;
+        button:active {
+            filter: brightness(0.85);
         }
         
         /* Estilos do Campo de Destino com Autocompletar */
@@ -56,12 +85,13 @@
         #input-destino {
             background-color: #e67e22;
             color: white;
-            width: 160px;
-            padding: 8px 12px;
-            font-size: 13px;
+            width: 130px;
+            padding: 8px 10px;
+            font-size: 12px;
             font-weight: bold;
-            border-radius: 5px;
+            border-radius: 6px;
             outline: none;
+            border: none;
         }
         #input-destino::placeholder {
             color: white;
@@ -74,28 +104,28 @@
             right: 0;
             background: white;
             border: 1px solid #ccc;
-            border-radius: 0 0 5px 5px;
-            z-index: 1000;
-            max-height: 200px;
+            border-radius: 0 0 6px 6px;
+            z-index: 2000;
+            max-height: 180px;
             overflow-y: auto;
             text-align: left;
             display: none;
             box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
         }
         .sugestao-item {
-            padding: 8px 10px;
-            font-size: 12px;
+            padding: 10px;
+            font-size: 11px;
             color: #333;
             border-bottom: 1px solid #eee;
             cursor: pointer;
-            font-weight: normal;
             text-transform: uppercase;
         }
         .sugestao-item:hover {
             background-color: #f1f2f6;
         }
 
-        #btn-gravar { background-color: #c0392b; min-width: 140px; }
+        #btn-localizacao { background-color: #34495e; }
+        #btn-gravar { background-color: #c0392b; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
         #btn-relatorio { background-color: #27ae60; }
@@ -107,26 +137,38 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+
         #instructions {
-            padding: 10px;
+            padding: 6px;
             text-align: center;
             font-weight: bold;
             color: #2c3e50;
             background-color: #ecf0f1;
             border-bottom: 1px solid #bdc3c7;
-            font-size: 14px;
+            font-size: 11px;
+            flex-shrink: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        /* Painel Formal Estilo RSO */
+        /* Painel Formal Estilo RSO - Otimizado como Drawer/Modal flutuante sobre o mapa */
         #painel-relatorio {
             display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            max-height: 50vh;
             background: #ffffff;
-            border-bottom: 2px solid #2c3e50;
+            border-top: 3px solid #2c3e50;
             padding: 12px;
-            max-height: 250px;
             overflow-y: auto;
             font-size: 12px;
-            box-shadow: inset 0 4px 6px -4px rgba(0,0,0,0.1);
+            z-index: 1500;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
         }
         .relatorio-header {
             display: flex;
@@ -135,8 +177,6 @@
             margin-bottom: 8px;
             border-bottom: 1px solid #ccc;
             padding-bottom: 6px;
-            flex-wrap: wrap;
-            gap: 5px;
         }
         .relatorio-acoes {
             display: flex;
@@ -144,6 +184,13 @@
         }
         #btn-whatsapp {
             background-color: #25d366;
+            color: white;
+            padding: 6px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+        }
+        #btn-fechar-painel {
+            background-color: #e74c3c;
             color: white;
             padding: 6px 10px;
             font-size: 11px;
@@ -160,14 +207,14 @@
             white-space: pre-wrap;
             color: #222;
             font-family: Arial, sans-serif;
-            line-height: 1.5;
+            line-height: 1.4;
             text-transform: uppercase;
         }
         #textarea-edicao {
             width: 100%;
-            height: 140px;
+            height: 120px;
             font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
             box-sizing: border-box;
@@ -176,9 +223,10 @@
             resize: vertical;
         }
 
+        /* Mapa preenchendo perfeitamente o espaço remanescente da tela mobile */
         #map {
+            flex: 1;
             width: 100%;
-            height: calc(100vh - 190px);
             touch-action: none; 
         }
         .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
@@ -186,43 +234,46 @@
 </head>
 <body>
 
-    <div id="header">
-        <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
-        <small style="color: #bdc3c7;">ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
-    </div>
-
-    <div id="controls">
-        <button id="btn-localizacao">📍 LOCAL</button>
-        
-        <!-- Campo de texto com autocomplete de Destino -->
-        <div id="btn-voz-container">
-            <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
-            <div id="sugestoes-destino"></div>
+    <div id="app-container">
+        <div id="header">
+            <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
+            <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
         </div>
 
-        <button id="btn-gravar">🔴 GRAVAR ROTA</button>
-        <button id="btn-marcar">⭐ MARCAR PONTO</button>
-        <button id="btn-relatorio">📋 GERAR RELATÓRIO</button>
-        <button id="btn-importar">📂 ABRIR</button>
-        <button id="btn-limpar">🧹 NOVO / LIMPAR</button>
-        <input type="file" id="input-json" style="display: none;" />
-    </div>
-    
-    <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
+        <div id="controls">
+            <button id="btn-localizacao">📍 LOCAL</button>
+            
+            <!-- Campo de texto com autocomplete de Destino -->
+            <div id="btn-voz-container">
+                <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
+                <div id="sugestoes-destino"></div>
+            </div>
 
-    <!-- Painel Formal de Exibição com Edição -->
+            <button id="btn-gravar">🔴 GRAVAR</button>
+            <button id="btn-marcar">⭐ MARCAR</button>
+            <button id="btn-relatorio">📋 RELATÓRIO</button>
+            <button id="btn-importar">📂 ABRIR</button>
+            <button id="btn-limpar">🧹 LIMPAR</button>
+            <input type="file" id="input-json" style="display: none;" />
+        </div>
+        
+        <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
+
+        <div id="map"></div>
+    </div>
+
+    <!-- Painel Formal de Exibição com Edição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
-            <strong>HISTÓRICO DE OPERAÇÕES:</strong>
+            <strong>HISTÓRICO:</strong>
             <div class="relatorio-acoes">
                 <button id="btn-editar">✏️ EDITAR</button>
-                <button id="btn-whatsapp">💬 WHATSAPP</button>
+                <button id="btn-whatsapp">💬 WPP</button>
+                <button id="btn-fechar-painel">❌</button>
             </div>
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
     </div>
-
-    <div id="map"></div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -277,6 +328,7 @@
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
         const btnEditar = document.getElementById('btn-editar');
+        const btnFecharPainel = document.getElementById('btn-fechar-painel');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
@@ -472,10 +524,9 @@
                 });
         }
 
-        // Função central para atualizar e exibir o relatório dinamicamente na tela
         function atualizarPainelRelatorioDinamico() {
             let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
-            relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO TOTAL: ${isGravando ? formatarTempo(segundosGravados) : 'EM ANDAMENTO'}\n\n`;
+            relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
             relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
             let contadorItem = 1;
@@ -490,11 +541,11 @@
             }
 
             if (pontosDeMelhoria.length > 0) {
-                relatorioFormal += `\nALTERAÇÕES DOS MEMBROS DA US (PONTOS MARCADOS):\n`;
+                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
                 pontosDeMelhoria.forEach((pm) => {
                     const hora = pm.hora || 'N/A';
                     const rua = (pm.rua || 'N/A').toUpperCase();
-                    const comentario = (pm.comentario || 'OCORRÊNCIA REGISTRADA').toUpperCase();
+                    const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
                     relatorioFormal += `• ÀS ${hora} - ${rua} - ${comentario}.\n`;
                 });
             }
@@ -545,7 +596,7 @@
                         markerDestino = L.marker([destinoLat, destinoLon]).addTo(map)
                             .bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
 
-                        instructionsDiv.innerHTML = `🎯 <b>ROTA ATÉ:</b> ${enderecoFormatado.toUpperCase()}`;
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA:</b> ${enderecoFormatado.toUpperCase()}`;
                         falarTexto("Rota calculada com sucesso.");
                     } else {
                         alert("Não foi possível encontrar uma rota para o destino selecionado.");
@@ -669,8 +720,7 @@
                 ruaAtualNome = nomeRua;
 
                 let deveSalvar = false;
-
-                if (!isGravando) return; // Se não estiver gravando via rota contínua, não adiciona pontos automáticos no trajeto
+                if (!isGravando) return;
 
                 if (!ultimaCoordenadaSalva) {
                     deveSalvar = true;
@@ -700,7 +750,7 @@
 
                     if (trackLayer) map.removeLayer(trackLayer);
                     trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
-                    instructionsDiv.innerHTML = `📍 PONTO SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
+                    instructionsDiv.innerHTML = `📍 SALVO (${horaAtual}): <b>${ruaAtualNome}</b>`;
                 }
             });
         }
@@ -766,7 +816,7 @@
                         btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                         atualizarPainelRelatorioDinamico();
                     }, 1000);
-                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO DE ROTA...";
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO...";
                 }
             } catch (e) {
                 console.error("Erro ao recuperar estado salvo", e);
@@ -784,11 +834,9 @@
             inputJson.click();
         });
 
-        // Função alterada para gerar relatório e permitir escolher onde salvar (igual ao gravar)
         btnRelatorio.addEventListener('click', async function() {
             atualizarPainelRelatorioDinamico();
             
-            // Se estiver em modo edição, garante que pega o texto atualizado
             if (emModoEdicao) {
                 const novoTexto = document.getElementById('textarea-edicao').value;
                 textoRelatorioPronto = novoTexto;
@@ -809,20 +857,15 @@
                 try {
                     const options = {
                         suggestedName: nomeSugestao,
-                        types: [{
-                            description: 'Arquivo JSON',
-                            accept: { 'application/json': ['.json'] },
-                        }],
+                        types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
                     };
                     const handle = await window.showSaveFilePicker(options);
                     const writable = await handle.createWritable();
                     await writable.write(jsonString);
                     await writable.close();
-                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO COM SUCESSO!";
+                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO!";
                 } catch (err) {
-                    if (err.name !== 'AbortError') {
-                        console.error("Erro ao salvar arquivo via File System Access API:", err);
-                    }
+                    if (err.name !== 'AbortError') console.error(err);
                 }
             } else {
                 const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
@@ -832,10 +875,13 @@
                 document.body.appendChild(downloadAnchor);
                 downloadAnchor.click();
                 downloadAnchor.remove();
-                instructionsDiv.innerHTML = "📋 RELATÓRIO GERADO E BAIXADO!";
+                instructionsDiv.innerHTML = "📋 RELATÓRIO BAIXADO!";
             }
+            falarTexto("Relatório gerado.");
+        });
 
-            falarTexto("Relatório gerado e salvo.");
+        btnFecharPainel.addEventListener('click', function() {
+            painelRelatorio.style.display = "none";
         });
 
         btnLimpar.addEventListener('click', function() {
@@ -853,7 +899,7 @@
                 textoRelatorioPronto = "";
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
-                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.textContent = "🔴 GRAVAR";
                 btnGravar.classList.remove('gravando');
 
                 if (trackLayer) map.removeLayer(trackLayer);
@@ -864,7 +910,7 @@
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
                 marcadoresMelhoriaLayers = [];
 
-                instructionsDiv.innerHTML = "🧹 DADOS LIMPOS. PRONTO PARA NOVO REGISTRO.";
+                instructionsDiv.innerHTML = "🧹 PRONTO PARA NOVO REGISTRO.";
                 falarTexto("Dados limpos.");
             }
         });
@@ -877,7 +923,6 @@
             leitor.onload = function(e) {
                 try {
                     const dados = JSON.parse(e.target.result);
-                    
                     const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
                     const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
 
@@ -889,9 +934,8 @@
                     btnEditar.style.backgroundColor = "#d35400";
                     
                     atualizarPainelRelatorioDinamico();
-
-                    instructionsDiv.innerHTML = `📂 RELATÓRIO CARREGADO COM SUCESSO.`;
-                    falarTexto("Relatório carregado com sucesso.");
+                    instructionsDiv.innerHTML = `📂 CARREGADO COM SUCESSO.`;
+                    falarTexto("Relatório carregado.");
 
                     if (trackLayer) map.removeLayer(trackLayer);
                     marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
@@ -932,7 +976,6 @@
                 emModoEdicao = true;
                 btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
-                
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
             } else {
                 const novoTexto = document.getElementById('textarea-edicao').value;
@@ -940,7 +983,6 @@
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
-                
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
                 salvarEstadoLocal();
                 falarTexto("Alterações salvas.");
@@ -1001,9 +1043,9 @@
                 clearInterval(tempoGravacaoInterval);
                 liberarWakeLock();
                 
-                btnGravar.textContent = "🔴 GRAVAR ROTA";
+                btnGravar.textContent = "🔴 GRAVAR";
                 btnGravar.classList.remove('gravando');
-                instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA E ARQUIVO GERADO!";
+                instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA!";
                 falarTexto("Gravação encerrada.");
 
                 atualizarPainelRelatorioDinamico();
@@ -1022,19 +1064,14 @@
                     try {
                         const options = {
                             suggestedName: nomeSugestao,
-                            types: [{
-                                description: 'Arquivo JSON',
-                                accept: { 'application/json': ['.json'] },
-                            }],
+                            types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
                         };
                         const handle = await window.showSaveFilePicker(options);
                         const writable = await handle.createWritable();
                         await writable.write(jsonString);
                         await writable.close();
                     } catch (err) {
-                        if (err.name !== 'AbortError') {
-                            console.error("Erro ao salvar arquivo via File System Access API:", err);
-                        }
+                        if (err.name !== 'AbortError') console.error(err);
                     }
                 } else {
                     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
@@ -1059,7 +1096,7 @@
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
             
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
-                const nota = prompt(`LOCAL: ${ruaEncontrada} ÀS ${horaAtual}\n\nDESCRIÇÃO DA ABORDAGEM/OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
+                const nota = prompt(`LOCAL: ${ruaEncontrada} ÀS ${horaAtual}\n\nDESCRIÇÃO DA OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
                 if (nota !== null) {
                     const notaUpper = nota.toUpperCase();
                     const coordsAtuais = [ultimaLat, ultimaLon];
