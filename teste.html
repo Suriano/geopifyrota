@@ -444,17 +444,23 @@
             window.speechSynthesis.speak(utterance);
         }
 
-        // Função de saudação personalizada conforme o horário do dia
-        function saudacaoPatrulheiro() {
+        // Função para saudações personalizadas baseadas no horário
+        function saudarPatrulheiro() {
             const hora = new Date().getHours();
-            let saudacao = "Bom dia";
+            let saudacao = "Bom dia patrulheiro! Excelente serviço.";
             if (hora >= 12 && hora < 18) {
-                saudacao = "Boa tarde";
+                saudacao = "Boa tarde patrulheiro! Excelente serviço.";
             } else if (hora >= 18 || hora < 5) {
-                saudacao = "Boa noite";
+                saudacao = "Boa noite patrulheiro! Excelente serviço.";
             }
-            const mensagem = `${saudacao} patrulheiro! Excelente serviço. Aborde o vagabundo de chinelo na moto. Pátio! Conte com o Sargento Suriano!`;
-            falarTexto(mensagem);
+            
+            // Fala imediata ao abrir a página
+            falarTexto(saudacao);
+
+            // Fala após 5 segundos
+            setTimeout(() => {
+                falarTexto("Aborde o vagabundo de chinelo na moto. Pátio! Conte com o Sargento Suriano");
+            }, 5000);
         }
 
         async function solicitarWakeLock() {
@@ -837,7 +843,7 @@
         }
 
         window.addEventListener('load', () => {
-            saudacaoPatrulheiro();
+            saudarPatrulheiro(); // Aciona a fala de saudação e o temporizador de 5 segundos
             atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
             restaurarEstadoLocal();
