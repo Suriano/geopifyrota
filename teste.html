@@ -124,18 +124,18 @@
             background-color: #f1f2f6;
         }
 
-        #btn-localizacao { background-color: #34495e;[cite: 3]}
-        #btn-gravar { background-color: #c0392b;[cite: 3]}
-        #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite;[cite: 3]}
-        #btn-marcar { background-color: #f39c12;[cite: 3]}
-        #btn-relatorio { background-color: #27ae60;[cite: 3]}
-        #btn-importar { background-color: #2980b9;[cite: 3]}
-        #btn-limpar { background-color: #7f8c8d;[cite: 3]}
+        #btn-localizacao { background-color: #34495e; }
+        #btn-gravar { background-color: #c0392b; }
+        #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
+        #btn-marcar { background-color: #f39c12; }
+        #btn-relatorio { background-color: #27ae60; }
+        #btn-importar { background-color: #2980b9; }
+        #btn-limpar { background-color: #7f8c8d; }
 
         @keyframes pulsar {
-            0% { opacity: 1;[cite: 3]}
-            50% { opacity: 0.5;[cite: 3]}
-            100% { opacity: 1;[cite: 3]}
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         #instructions {
@@ -223,13 +223,70 @@
             resize: vertical;
         }
 
+        /* Modal Personalizado para Opções de Marcação */
+        #modal-marcacao {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 3000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            font-size: 14px;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        .modal-opcoes {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .btn-opcao {
+            background-color: #34495e;
+            color: white;
+            padding: 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .btn-opcao:hover {
+            filter: brightness(1.1);
+        }
+        #btn-opcao-abordagem { background-color: #c0392b; }
+        #btn-opcao-patrulhamento { background-color: #2980b9; }
+        #btn-opcao-talao { background-color: #27ae60; }
+        #btn-opcao-ronda { background-color: #f39c12; }
+        #btn-opcao-outro { background-color: #7f8c8d; }
+        .btn-modal-fechar {
+            background-color: #e74c3c;
+            margin-top: 5px;
+        }
+
         /* Mapa preenchendo perfeitamente o espaço remanescente da tela mobile */
         #map {
             flex: 1;
             width: 100%;
             touch-action: none; 
         }
-        .viatura-icon { font-size: 24px; text-align: center; line-height: 24px;[cite: 3]}
+        .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
     </style>
 </head>
 <body>
@@ -273,6 +330,21 @@
             </div>
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
+    </div>
+
+    <!-- Modal de Seleção de Ocorrência/Marcação -->
+    <div id="modal-marcacao">
+        <div class="modal-content">
+            <h3>SELECIONE O TIPO DE REGISTRO</h3>
+            <div class="modal-opcoes">
+                <button class="btn-opcao" id="btn-opcao-abordagem">ABORDAGEM REALIZADA</button>
+                <button class="btn-opcao" id="btn-opcao-patrulhamento">PATRULHAMENTO</button>
+                <button class="btn-opcao" id="btn-opcao-talao">ATENDIMENTO DO TALÃO</button>
+                <button class="btn-opcao" id="btn-opcao-ronda">RONDA</button>
+                <button class="btn-opcao" id="btn-opcao-outro">OUTRO (DIGITAR)</button>
+                <button class="btn-opcao btn-modal-fechar" id="btn-modal-cancelar">CANCELAR</button>
+            </div>
+        </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -335,6 +407,7 @@
         
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
+        const modalMarcacao = document.getElementById('modal-marcacao');
 
         // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML
         const dadosSetoresKML = [
@@ -1087,34 +1160,56 @@
             }
         });
 
+        // Função para processar a escolha do modal de marcação
+        function confirmarMarcacao(notaUpper) {
+            modalMarcacao.style.display = 'none';
+            if (!notaUpper) return;
+
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
+                const coordsAtuais = [ultimaLat, ultimaLon];
+
+                pontosDeMelhoria.push({ 
+                    hora: horaAtual, 
+                    rua: ruaEncontrada, 
+                    coordenadas: coordsAtuais, 
+                    comentario: notaUpper 
+                });
+
+                atualizarPainelRelatorioDinamico();
+
+                const m = L.marker(coordsAtuais).addTo(map).bindPopup(`<b>${ruaEncontrada}</b><br>${notaUpper}`).openPopup();
+                marcadoresMelhoriaLayers.push(m);
+                falarTexto("Ponto marcado.");
+            });
+        }
+
         btnMarcar.addEventListener('click', function() {
             if (ultimaLat === null || ultimaLon === null) { 
                 alert("AGUARDANDO SINAL DE GPS ATUAL."); 
                 return; 
             }
+            modalMarcacao.style.display = 'flex';
+        });
 
+        document.getElementById('btn-opcao-abordagem').addEventListener('click', () => confirmarMarcacao('ABORDAGEM REALIZADA'));
+        document.getElementById('btn-opcao-patrulhamento').addEventListener('click', () => confirmarMarcacao('PATRULHAMENTO'));
+        document.getElementById('btn-opcao-talao').addEventListener('click', () => confirmarMarcacao('ATENDIMENTO DO TALÃO'));
+        document.getElementById('btn-opcao-ronda').addEventListener('click', () => confirmarMarcacao('RONDA'));
+        
+        document.getElementById('btn-opcao-outro').addEventListener('click', () => {
+            modalMarcacao.style.display = 'none';
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
-            
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
-                const nota = prompt(`LOCAL: ${ruaEncontrada} ÀS ${horaAtual}\n\nDESCRIÇÃO DA OCORRÊNCIA:`, "ABORDAGEM REALIZADA");
-                if (nota !== null) {
-                    const notaUpper = nota.toUpperCase();
-                    const coordsAtuais = [ultimaLat, ultimaLon];
-
-                    pontosDeMelhoria.push({ 
-                        hora: horaAtual, 
-                        rua: ruaEncontrada, 
-                        coordenadas: coordsAtuais, 
-                        comentario: notaUpper 
-                    });
-
-                    atualizarPainelRelatorioDinamico();
-
-                    const m = L.marker(coordsAtuais).addTo(map).bindPopup(`<b>${ruaEncontrada}</b><br>${notaUpper}`).openPopup();
-                    marcadoresMelhoriaLayers.push(m);
-                    falarTexto("Ponto marcado.");
+                const nota = prompt(`LOCAL: ${ruaEncontrada} ÀS ${horaAtual}\n\nDESCRIÇÃO DA OCORRÊNCIA:`, "");
+                if (nota !== null && nota.trim() !== "") {
+                    confirmarMarcacao(nota.toUpperCase());
                 }
             });
+        });
+
+        document.getElementById('btn-modal-cancelar').addEventListener('click', () => {
+            modalMarcacao.style.display = 'none';
         });
 
         btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
