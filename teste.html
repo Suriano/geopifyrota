@@ -315,8 +315,8 @@
 
     <div id="app-container">
         <div id="header">
-            <h2>RELATÓRIO DE SERVIÇO OPERACIONAL[cite: 3]</h2>
-            <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span>[cite: 3]</small>
+            <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
+            <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
         </div>
 
         <div id="controls">
@@ -639,8 +639,6 @@
         }
 
         function atualizarPainelRelatorioDinamico() {
-            // Se o usuário já tiver editado ou já existir um texto gerado anteriormente, não sobrescrevemos o texto inteiro bruto,
-            // mas anexamos a nova alteração/ponto marcado de forma inteligente.
             let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
             relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
             relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
@@ -661,23 +659,16 @@
             }
 
             if (pontosDeMelhoria.length > 0) {
-                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                relatorioFormal += `\nOCORRÊNCIAS / PONTOS MARCADOS:\n`;
                 pontosDeMelhoria.forEach((pm) => {
                     const hora = pm.hora || 'N/A';
                     const rua = (pm.rua || 'N/A').toUpperCase();
                     const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                    relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
+                    relatorioFormal += `- ÀS ${hora} - ${comentario} EM ${rua}\n`;
                 });
             }
-
-            // Preserva alterações manuais anteriores se houver, anexando novos pontos marcados de forma acumulativa
-            if (textoRelatorioPronto && emModoEdicao === false) {
-                // Se já havia um texto formatado ou salvo, podemos anexar o novo ponto marcado ao final sem perder o restante
-                // Ou se preferir manter o gerador automático sincronizado com os pontos adicionados:
-                textoRelatorioPronto = relatorioFormal;
-            } else if (!textoRelatorioPronto) {
-                textoRelatorioPronto = relatorioFormal;
-            }
+            
+            textoRelatorioPronto = relatorioFormal;
 
             if (!emModoEdicao) {
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -1229,7 +1220,7 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
-                textareaOcorrencia.value = "ABORDAGEM REALIZADA"; 
+                textareaOcorrencia.value = "ABORDAGEM REALIZADA";
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1252,17 +1243,7 @@
                     comentario: notaUpper 
                 });
 
-                // Se o usuário já tiver editado o texto manualmente antes, adicionamos a nova marcação na seção correspondente sem sobrescrever o topo/edições prévias
-                if (textoRelatorioPronto && !textoRelatorioPronto.includes(notaUpper)) {
-                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};`;
-                } else {
-                    atualizarPainelRelatorioDinamico();
-                }
-
-                if (!emModoEdicao) {
-                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                }
-                salvarEstadoLocal();
+                atualizarPainelRelatorioDinamico();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
