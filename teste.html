@@ -282,13 +282,6 @@
             font-size: 11px;
             border-radius: 4px;
         }
-        #btn-salvar-painel {
-            background-color: #27ae60;
-            color: white;
-            padding: 6px 10px;
-            font-size: 11px;
-            border-radius: 4px;
-        }
         .relatorio-conteudo {
             white-space: pre-wrap;
             color: #222;
@@ -366,12 +359,11 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição com Edição e Salvamento (Flutuante na parte inferior) -->
+    <!-- Painel Formal de Exibição com Edição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
             <div class="relatorio-acoes">
-                <button id="btn-salvar-painel">💾 SALVAR</button>
                 <button id="btn-editar">✏️ EDITAR</button>
                 <button id="btn-whatsapp">💬 WPP</button>
                 <button id="btn-fechar-painel">❌</button>
@@ -433,7 +425,6 @@
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
         const btnEditar = document.getElementById('btn-editar');
-        const btnSalvarPainel = document.getElementById('btn-salvar-painel');
         const btnFecharPainel = document.getElementById('btn-fechar-painel');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
@@ -677,59 +668,14 @@
                 });
             }
 
-            textoRelatorioPronto = relatorioFormal;
+            // Só atualiza o texto gerado caso não esteja em modo de edição manual ativa
             if (!emModoEdicao) {
+                textoRelatorioPronto = relatorioFormal;
                 textoRelatorioVisivel.textContent = relatorioFormal;
             }
+            
             painelRelatorio.style.display = "block";
             salvarEstadoLocal();
-        }
-
-        // Função unificada para salvar o relatório globalmente (usada pelo botão Relatório e pelo botão Salvar do painel)
-        async function salvarRelatorioCompleto() {
-            atualizarPainelRelatorioDinamico();
-            
-            if (emModoEdicao) {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
-            }
-
-            const dadosRelatorio = {
-                dataGeracao: new Date().toLocaleDateString('pt-BR'),
-                tempoTotal: isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO',
-                historicoRuasETempo: registrosTrajeto,
-                pontosMarcados: pontosDeMelhoria,
-                textoFormatado: textoRelatorioPronto
-            };
-
-            const jsonString = JSON.stringify(dadosRelatorio, null, 2);
-            const nomeSugestao = `relatorio_operacional_${new Date().toISOString().slice(0,10)}.json`;
-
-            if (window.showSaveFilePicker) {
-                try {
-                    const options = {
-                        suggestedName: nomeSugestao,
-                        types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
-                    };
-                    const handle = await window.showSaveFilePicker(options);
-                    const writable = await handle.createWritable();
-                    await writable.write(jsonString);
-                    await writable.close();
-                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO!";
-                } catch (err) {
-                    if (err.name !== 'AbortError') console.error(err);
-                }
-            } else {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
-                const downloadAnchor = document.createElement('a');
-                downloadAnchor.setAttribute("href", dataStr);
-                downloadAnchor.setAttribute("download", nomeSugestao);
-                document.body.appendChild(downloadAnchor);
-                downloadAnchor.click();
-                downloadAnchor.remove();
-                instructionsDiv.innerHTML = "📋 RELATÓRIO BAIXADO!";
-            }
-            falarTexto("Relatório salvo.");
         }
 
         function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
@@ -1004,12 +950,50 @@
             inputJson.click();
         });
 
-        btnRelatorio.addEventListener('click', function() {
-            atualizarPainelRelatorioDinamico();
-        });
+        btnRelatorio.addEventListener('click', async function() {
+            if (emModoEdicao) {
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
+            } else {
+                atualizarPainelRelatorioDinamico();
+            }
 
-        btnSalvarPainel.addEventListener('click', function() {
-            salvarRelatorioCompleto();
+            const dadosRelatorio = {
+                dataGeracao: new Date().toLocaleDateString('pt-BR'),
+                tempoTotal: isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO',
+                historicoRuasETempo: registrosTrajeto,
+                pontosMarcados: pontosDeMelhoria,
+                textoFormatado: textoRelatorioPronto
+            };
+
+            const jsonString = JSON.stringify(dadosRelatorio, null, 2);
+            const nomeSugestao = `relatorio_operacional_${new Date().toISOString().slice(0,10)}.json`;
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const options = {
+                        suggestedName: nomeSugestao,
+                        types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
+                    };
+                    const handle = await window.showSaveFilePicker(options);
+                    const writable = await handle.createWritable();
+                    await writable.write(jsonString);
+                    await writable.close();
+                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO!";
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error(err);
+                }
+            } else {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", nomeSugestao);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+                instructionsDiv.innerHTML = "📋 RELATÓRIO BAIXADO!";
+            }
+            falarTexto("Relatório gerado.");
         });
 
         btnFecharPainel.addEventListener('click', function() {
@@ -1029,6 +1013,9 @@
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
+                emModoEdicao = false;
+                btnEditar.textContent = "✏️ EDITAR";
+                btnEditar.style.backgroundColor = "#d35400";
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
@@ -1106,7 +1093,7 @@
         btnEditar.addEventListener('click', function() {
             if (!emModoEdicao) {
                 emModoEdicao = true;
-                btnEditar.textContent = "💾 CONCLUIR";
+                btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
             } else {
@@ -1257,6 +1244,13 @@
                     coordenadas: coordsAtuaisPendentes, 
                     comentario: notaUpper 
                 });
+
+                // Se o usuário estava editando manualmente, cancelamos o modo de edição para incorporar o novo ponto corretamente
+                if (emModoEdicao) {
+                    emModoEdicao = false;
+                    btnEditar.textContent = "✏️ EDITAR";
+                    btnEditar.style.backgroundColor = "#d35400";
+                }
 
                 atualizarPainelRelatorioDinamico();
 
