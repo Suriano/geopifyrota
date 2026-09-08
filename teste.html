@@ -659,16 +659,18 @@
             }
 
             if (pontosDeMelhoria.length > 0) {
-                relatorioFormal += `\nOCORRÊNCIAS / PONTOS MARCADOS:\n`;
+                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
                 pontosDeMelhoria.forEach((pm) => {
                     const hora = pm.hora || 'N/A';
                     const rua = (pm.rua || 'N/A').toUpperCase();
                     const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                    relatorioFormal += `- ÀS ${hora} - ${comentario} EM ${rua}\n`;
+                    relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
                 });
             }
-            
-            textoRelatorioPronto = relatorioFormal;
+
+            if (!textoRelatorioPronto || emModoEdicao === false) {
+                textoRelatorioPronto = relatorioFormal;
+            }
 
             if (!emModoEdicao) {
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -950,11 +952,17 @@
         });
 
         btnRelatorio.addEventListener('click', async function() {
-            atualizarPainelRelatorioDinamico();
-            
             if (emModoEdicao) {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
+                const textareaEdicao = document.getElementById('textarea-edicao');
+                if (textareaEdicao) {
+                    textoRelatorioPronto = textareaEdicao.value;
+                    emModoEdicao = false;
+                    btnEditar.textContent = "✏️ EDITAR";
+                    btnEditar.style.backgroundColor = "#d35400";
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                }
+            } else {
+                atualizarPainelRelatorioDinamico();
             }
 
             const dadosRelatorio = {
@@ -1089,26 +1097,34 @@
 
         btnEditar.addEventListener('click', function() {
             if (!emModoEdicao) {
+                // Entrar no modo de edição: atualiza primeiro caso haja histórico acumulado
+                atualizarPainelRelatorioDinamico();
                 emModoEdicao = true;
                 btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
+                document.getElementById('textarea-edicao').focus();
             } else {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
+                // Clicar em SALVAR: captura o texto editado, copia para o relatório e sincroniza o histórico
+                const textareaEdicao = document.getElementById('textarea-edicao');
+                if (textareaEdicao) {
+                    textoRelatorioPronto = textareaEdicao.value;
+                }
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
                 salvarEstadoLocal();
-                falarTexto("Alterações salvas.");
+                falarTexto("Alterações salvas e relatório atualizado.");
             }
         });
 
         btnWhatsapp.addEventListener('click', function() {
             if (emModoEdicao) {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
+                const textareaEdicao = document.getElementById('textarea-edicao');
+                if (textareaEdicao) {
+                    textoRelatorioPronto = textareaEdicao.value;
+                }
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
@@ -1220,7 +1236,7 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
-                textareaOcorrencia.value = "ABORDAGEM REALIZADA";
+                textareaOcorrencia.value = "ABORDAGEM REALIZADA"; 
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1243,7 +1259,16 @@
                     comentario: notaUpper 
                 });
 
-                atualizarPainelRelatorioDinamico();
+                if (textoRelatorioPronto && !textoRelatorioPronto.includes(notaUpper)) {
+                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};`;
+                } else {
+                    atualizarPainelRelatorioDinamico();
+                }
+
+                if (!emModoEdicao) {
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                }
+                salvarEstadoLocal();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
