@@ -213,6 +213,31 @@
             resize: none;
             margin-bottom: 10px;
         }
+        
+        /* Área de pré-visualização do relatório na modal */
+        #preview-relatorio-container {
+            display: none;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border: 1px dashed #27ae60;
+            padding: 8px;
+            border-radius: 4px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        #preview-relatorio-container small {
+            color: #27ae60;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+        #preview-relatorio-texto {
+            font-size: 10px;
+            color: #333;
+            white-space: pre-wrap;
+            margin: 0;
+        }
+
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -352,9 +377,16 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
             <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+            
+            <!-- Pré-visualização na Modal -->
+            <div id="preview-relatorio-container">
+                <small>PRÉVIA DO RELATÓRIO:</small>
+                <p id="preview-relatorio-texto"></p>
+            </div>
+
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
-                <button type="button" id="btn-modal-ok">OK</button>
+                <button type="button" id="btn-modal-ok">OK / SALVAR</button>
             </div>
         </div>
     </div>
@@ -415,6 +447,9 @@
         let ultimaLon = null;
         let textoRelatorioPronto = "";
         let emModoEdicao = false;
+        
+        // Variável solicitada para armazenar o conteúdo da caixa de texto ao salvar
+        let conteudoRelatorioArmazenado = "";
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -439,6 +474,8 @@
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
+        const previewRelatorioContainer = document.getElementById('preview-relatorio-container');
+        const previewRelatorioTexto = document.getElementById('preview-relatorio-texto');
 
         function inserirAtalho(texto) {
             const atual = textareaOcorrencia.value.trim();
@@ -668,7 +705,9 @@
                 });
             }
 
-            if (!textoRelatorioPronto || emModoEdicao === false) {
+            if (textoRelatorioPronto && emModoEdicao === false) {
+                textoRelatorioPronto = relatorioFormal;
+            } else if (!textoRelatorioPronto) {
                 textoRelatorioPronto = relatorioFormal;
             }
 
@@ -952,17 +991,11 @@
         });
 
         btnRelatorio.addEventListener('click', async function() {
+            atualizarPainelRelatorioDinamico();
+            
             if (emModoEdicao) {
-                const textareaEdicao = document.getElementById('textarea-edicao');
-                if (textareaEdicao) {
-                    textoRelatorioPronto = textareaEdicao.value;
-                    emModoEdicao = false;
-                    btnEditar.textContent = "✏️ EDITAR";
-                    btnEditar.style.backgroundColor = "#d35400";
-                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                }
-            } else {
-                atualizarPainelRelatorioDinamico();
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
             }
 
             const dadosRelatorio = {
@@ -1020,6 +1053,7 @@
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
+                conteudoRelatorioArmazenado = "";
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
@@ -1097,34 +1131,26 @@
 
         btnEditar.addEventListener('click', function() {
             if (!emModoEdicao) {
-                // Entrar no modo de edição: atualiza primeiro caso haja histórico acumulado
-                atualizarPainelRelatorioDinamico();
                 emModoEdicao = true;
                 btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
-                document.getElementById('textarea-edicao').focus();
             } else {
-                // Clicar em SALVAR: captura o texto editado, copia para o relatório e sincroniza o histórico
-                const textareaEdicao = document.getElementById('textarea-edicao');
-                if (textareaEdicao) {
-                    textoRelatorioPronto = textareaEdicao.value;
-                }
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
                 salvarEstadoLocal();
-                falarTexto("Alterações salvas e relatório atualizado.");
+                falarTexto("Alterações salvas.");
             }
         });
 
         btnWhatsapp.addEventListener('click', function() {
             if (emModoEdicao) {
-                const textareaEdicao = document.getElementById('textarea-edicao');
-                if (textareaEdicao) {
-                    textoRelatorioPronto = textareaEdicao.value;
-                }
+                const novoTexto = document.getElementById('textarea-edicao').value;
+                textoRelatorioPronto = novoTexto;
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
@@ -1237,6 +1263,11 @@
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
                 textareaOcorrencia.value = "ABORDAGEM REALIZADA"; 
+                
+                // Ocultar a prévia ao abrir uma nova marcação
+                previewRelatorioContainer.style.display = "none";
+                previewRelatorioTexto.textContent = "";
+
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1246,21 +1277,39 @@
             modalMarcar.style.display = "none";
         });
 
+        // Ação ao clicar em OK / Salvar na modal
+        let etapaConfirmacaoSalvar = false;
+
         btnModalOk.addEventListener('click', function() {
             const nota = textareaOcorrencia.value.trim();
-            if (nota !== "") {
-                const horaAtual = new Date().toLocaleTimeString('pt-BR');
-                const notaUpper = nota.toUpperCase();
+            if (nota === "") return;
 
+            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            const notaUpper = nota.toUpperCase();
+
+            // 1. Armazenar todo o conteúdo da caixa de texto em uma variável
+            conteudoRelatorioArmazenado = notaUpper;
+
+            if (!etapaConfirmacaoSalvar) {
+                // 2. Mostrar na modal como está ficando o relatório antes de salvar definitivamente
+                let previewTexto = `LOCAL: ${ruaAtualPendente}\nHORA: ${horaAtual}\nOCORRÊNCIA: ${conteudoRelatorioArmazenado}`;
+                previewRelatorioTexto.textContent = previewTexto;
+                previewRelatorioContainer.style.display = "block";
+                
+                // Altera o texto do botão para confirmar a gravação definitiva
+                btnModalOk.textContent = "CONFIRMAR E SALVAR";
+                etapaConfirmacaoSalvar = true;
+            } else {
+                // Confirmação final efetuada, grava os dados
                 pontosDeMelhoria.push({ 
                     hora: horaAtual, 
                     rua: ruaAtualPendente, 
                     coordenadas: coordsAtuaisPendentes, 
-                    comentario: notaUpper 
+                    comentario: conteudoRelatorioArmazenado 
                 });
 
-                if (textoRelatorioPronto && !textoRelatorioPronto.includes(notaUpper)) {
-                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};`;
+                if (textoRelatorioPronto && !textoRelatorioPronto.includes(conteudoRelatorioArmazenado)) {
+                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${conteudoRelatorioArmazenado} ${ruaAtualPendente};`;
                 } else {
                     atualizarPainelRelatorioDinamico();
                 }
@@ -1270,11 +1319,15 @@
                 }
                 salvarEstadoLocal();
 
-                const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
+                const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${conteudoRelatorioArmazenado}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
-                falarTexto("Ponto marcado.");
+                falarTexto("Ponto marcado e salvo.");
+
+                // Reseta estado da modal e fecha
+                etapaConfirmacaoSalvar = false;
+                btnModalOk.textContent = "OK / SALVAR";
+                modalMarcar.style.display = "none";
             }
-            modalMarcar.style.display = "none";
         });
 
         btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
