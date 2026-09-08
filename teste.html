@@ -608,7 +608,7 @@
             }
 
             if (registrosTrajeto.length === 0) {
-                relatorioFormal += `1. NENHUM REGISTRO INFORMADO AINDA.\n`;
+                relatorioFormal += `1. NENHUM REGISTRO DE ROTA INFORMADO AINDA.\n`;
             }
 
             if (pontosDeMelhoria.length > 0) {
@@ -617,11 +617,11 @@
                     const hora = pm.hora || 'N/A';
                     const rua = (pm.rua || 'N/A').toUpperCase();
                     const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                    relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
+                    relatorioFormal += `• ÀS ${hora} - ${comentario} EM ${rua};\n`;
                 });
             }
 
-            if (!textoRelatorioPronto || registrosTrajeto.length > 0) {
+            if (!textoRelatorioPronto || registrosTrajeto.length > 0 || pontosDeMelhoria.length > 0) {
                 textoRelatorioPronto = relatorioFormal;
             }
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -950,7 +950,6 @@
             leitor.readAsText(arquivo);
         });
 
-        // Eventos do Modal "Editar / Gerar Relatório"
         btnGerarRelatorioModal.addEventListener('click', function() {
             atualizarPainelRelatorioDinamico();
             textareaRelatorioModal.value = textoRelatorioPronto;
