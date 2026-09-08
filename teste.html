@@ -668,12 +668,10 @@
                 });
             }
 
-            // Só atualiza o texto gerado caso não esteja em modo de edição manual ativa
+            textoRelatorioPronto = relatorioFormal;
             if (!emModoEdicao) {
-                textoRelatorioPronto = relatorioFormal;
                 textoRelatorioVisivel.textContent = relatorioFormal;
             }
-            
             painelRelatorio.style.display = "block";
             salvarEstadoLocal();
         }
@@ -951,11 +949,11 @@
         });
 
         btnRelatorio.addEventListener('click', async function() {
+            atualizarPainelRelatorioDinamico();
+            
             if (emModoEdicao) {
                 const novoTexto = document.getElementById('textarea-edicao').value;
                 textoRelatorioPronto = novoTexto;
-            } else {
-                atualizarPainelRelatorioDinamico();
             }
 
             const dadosRelatorio = {
@@ -1013,9 +1011,6 @@
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
-                emModoEdicao = false;
-                btnEditar.textContent = "✏️ EDITAR";
-                btnEditar.style.backgroundColor = "#d35400";
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
@@ -1222,7 +1217,12 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
-                textareaOcorrencia.value = "ABORDAGEM REALIZADA"; // Valor padrão inicial sugerido
+                
+                // Mantém o histórico/texto anterior se houver rascunho, senão define o valor padrão inicial
+                if (!textareaOcorrencia.value.trim()) {
+                    textareaOcorrencia.value = "ABORDAGEM REALIZADA";
+                }
+                
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1244,13 +1244,6 @@
                     coordenadas: coordsAtuaisPendentes, 
                     comentario: notaUpper 
                 });
-
-                // Se o usuário estava editando manualmente, cancelamos o modo de edição para incorporar o novo ponto corretamente
-                if (emModoEdicao) {
-                    emModoEdicao = false;
-                    btnEditar.textContent = "✏️ EDITAR";
-                    btnEditar.style.backgroundColor = "#d35400";
-                }
 
                 atualizarPainelRelatorioDinamico();
 
