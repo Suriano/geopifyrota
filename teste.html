@@ -213,31 +213,6 @@
             resize: none;
             margin-bottom: 10px;
         }
-        
-        /* Área de pré-visualização do relatório na modal */
-        #preview-relatorio-container {
-            display: none;
-            margin-bottom: 10px;
-            background: #f8f9fa;
-            border: 1px dashed #27ae60;
-            padding: 8px;
-            border-radius: 4px;
-            max-height: 100px;
-            overflow-y: auto;
-        }
-        #preview-relatorio-container small {
-            color: #27ae60;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 4px;
-        }
-        #preview-relatorio-texto {
-            font-size: 10px;
-            color: #333;
-            white-space: pre-wrap;
-            margin: 0;
-        }
-
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -254,6 +229,72 @@
             color: white;
             padding: 6px 12px;
             border-radius: 4px;
+        }
+
+        /* Modal Nova: Pré-visualização do Relatório Antes de Salvar */
+        #modal-preview-relatorio {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 4000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-preview-conteudo {
+            background: #ffffff;
+            width: 92%;
+            max-width: 450px;
+            max-height: 80vh;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-preview-conteudo h3 {
+            margin-top: 0;
+            font-size: 13px;
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+        }
+        #preview-texto-gerado {
+            background: #f8f9fa;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 10px;
+            font-size: 11px;
+            font-family: Arial, sans-serif;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            flex: 1;
+            max-height: 50vh;
+            text-transform: uppercase;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        .preview-acoes {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        #btn-preview-fechar {
+            background-color: #7f8c8d;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+        #btn-preview-confirmar {
+            background-color: #27ae60;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 11px;
         }
 
         /* Painel Formal Estilo RSO - Otimizado como Drawer/Modal flutuante sobre o mapa */
@@ -377,16 +418,21 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
             <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
-            
-            <!-- Pré-visualização na Modal -->
-            <div id="preview-relatorio-container">
-                <small>PRÉVIA DO RELATÓRIO:</small>
-                <p id="preview-relatorio-texto"></p>
-            </div>
-
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
-                <button type="button" id="btn-modal-ok">OK / SALVAR</button>
+                <button type="button" id="btn-modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Pré-visualização do Relatório Antes de Salvar -->
+    <div id="modal-preview-relatorio">
+        <div class="modal-preview-conteudo">
+            <h3>PRÉ-VISUALIZAÇÃO DO RELATÓRIO</h3>
+            <div id="preview-texto-gerado"></div>
+            <div class="preview-acoes">
+                <button type="button" id="btn-preview-fechar">VOLTAR À EDIÇÃO</button>
+                <button type="button" id="btn-preview-confirmar">CONFIRMAR E SALVAR</button>
             </div>
         </div>
     </div>
@@ -446,10 +492,8 @@
         let ultimaLat = null;
         let ultimaLon = null;
         let textoRelatorioPronto = "";
+        let conteudoRelatorioArmazenado = ""; // Variável global solicitada para armazenar todo o conteúdo
         let emModoEdicao = false;
-        
-        // Variável solicitada para armazenar o conteúdo da caixa de texto ao salvar
-        let conteudoRelatorioArmazenado = "";
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -474,8 +518,12 @@
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
-        const previewRelatorioContainer = document.getElementById('preview-relatorio-container');
-        const previewRelatorioTexto = document.getElementById('preview-relatorio-texto');
+
+        // Elementos da Nova Modal de Pré-visualização
+        const modalPreviewRelatorio = document.getElementById('modal-preview-relatorio');
+        const previewTextoGerado = document.getElementById('preview-texto-gerado');
+        const btnPreviewFechar = document.getElementById('btn-preview-fechar');
+        const btnPreviewConfirmar = document.getElementById('btn-preview-confirmar');
 
         function inserirAtalho(texto) {
             const atual = textareaOcorrencia.value.trim();
@@ -1129,28 +1177,56 @@
             leitor.readAsText(arquivo);
         });
 
+        // Evento Atualizado para Salvar o Histórico na Variável e Exibir a Modal de Pré-visualização
         btnEditar.addEventListener('click', function() {
             if (!emModoEdicao) {
+                // Entrar no modo de edição
                 emModoEdicao = true;
                 btnEditar.textContent = "💾 SALVAR";
                 btnEditar.style.backgroundColor = "#27ae60";
                 textoRelatorioVisivel.innerHTML = `<textarea id="textarea-edicao">${textoRelatorioPronto}</textarea>`;
             } else {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
-                emModoEdicao = false;
-                btnEditar.textContent = "✏️ EDITAR";
-                btnEditar.style.backgroundColor = "#d35400";
-                textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                salvarEstadoLocal();
-                falarTexto("Alterações salvas.");
+                // Ao clicar em "Salvar" dentro da caixa de texto do histórico:
+                const textareaElement = document.getElementById('textarea-edicao');
+                if (textareaElement) {
+                    // 1. Armazenar todo o conteúdo da caixa de texto em uma variável dedicada
+                    conteudoRelatorioArmazenado = textareaElement.value;
+                } else {
+                    conteudoRelatorioArmazenado = textoRelatorioPronto;
+                }
+
+                // 2. Mostrar na modal de pré-visualização como está ficando o relatório antes de salvar definitivamente
+                previewTextoGerado.textContent = conteudoRelatorioArmazenado;
+                modalPreviewRelatorio.style.display = "flex";
             }
+        });
+
+        // Botão Fechar/Voltar da Modal de Preview
+        btnPreviewFechar.addEventListener('click', function() {
+            modalPreviewRelatorio.style.display = "none";
+            // Mantém o modo de edição ativo para o usuário continuar ajustando se desejar
+        });
+
+        // Botão Confirmar da Modal de Preview (Efetiva a gravação na interface e localStorage)
+        btnPreviewConfirmar.addEventListener('click', function() {
+            textoRelatorioPronto = conteudoRelatorioArmazenado;
+            emModoEdicao = false;
+            btnEditar.textContent = "✏️ EDITAR";
+            btnEditar.style.backgroundColor = "#d35400";
+            textoRelatorioVisivel.textContent = textoRelatorioPronto;
+            
+            modalPreviewRelatorio.style.display = "none";
+            salvarEstadoLocal();
+            falarTexto("Alterações salvas e confirmadas.");
         });
 
         btnWhatsapp.addEventListener('click', function() {
             if (emModoEdicao) {
-                const novoTexto = document.getElementById('textarea-edicao').value;
-                textoRelatorioPronto = novoTexto;
+                const textareaElement = document.getElementById('textarea-edicao');
+                if (textareaElement) {
+                    conteudoRelatorioArmazenado = textareaElement.value;
+                }
+                textoRelatorioPronto = conteudoRelatorioArmazenado;
                 emModoEdicao = false;
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
@@ -1263,11 +1339,6 @@
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
                 textareaOcorrencia.value = "ABORDAGEM REALIZADA"; 
-                
-                // Ocultar a prévia ao abrir uma nova marcação
-                previewRelatorioContainer.style.display = "none";
-                previewRelatorioTexto.textContent = "";
-
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1277,39 +1348,21 @@
             modalMarcar.style.display = "none";
         });
 
-        // Ação ao clicar em OK / Salvar na modal
-        let etapaConfirmacaoSalvar = false;
-
         btnModalOk.addEventListener('click', function() {
             const nota = textareaOcorrencia.value.trim();
-            if (nota === "") return;
+            if (nota !== "") {
+                const horaAtual = new Date().toLocaleTimeString('pt-BR');
+                const notaUpper = nota.toUpperCase();
 
-            const horaAtual = new Date().toLocaleTimeString('pt-BR');
-            const notaUpper = nota.toUpperCase();
-
-            // 1. Armazenar todo o conteúdo da caixa de texto em uma variável
-            conteudoRelatorioArmazenado = notaUpper;
-
-            if (!etapaConfirmacaoSalvar) {
-                // 2. Mostrar na modal como está ficando o relatório antes de salvar definitivamente
-                let previewTexto = `LOCAL: ${ruaAtualPendente}\nHORA: ${horaAtual}\nOCORRÊNCIA: ${conteudoRelatorioArmazenado}`;
-                previewRelatorioTexto.textContent = previewTexto;
-                previewRelatorioContainer.style.display = "block";
-                
-                // Altera o texto do botão para confirmar a gravação definitiva
-                btnModalOk.textContent = "CONFIRMAR E SALVAR";
-                etapaConfirmacaoSalvar = true;
-            } else {
-                // Confirmação final efetuada, grava os dados
                 pontosDeMelhoria.push({ 
                     hora: horaAtual, 
                     rua: ruaAtualPendente, 
                     coordenadas: coordsAtuaisPendentes, 
-                    comentario: conteudoRelatorioArmazenado 
+                    comentario: notaUpper 
                 });
 
-                if (textoRelatorioPronto && !textoRelatorioPronto.includes(conteudoRelatorioArmazenado)) {
-                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${conteudoRelatorioArmazenado} ${ruaAtualPendente};`;
+                if (textoRelatorioPronto && !textoRelatorioPronto.includes(notaUpper)) {
+                    textoRelatorioPronto += `\n• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};`;
                 } else {
                     atualizarPainelRelatorioDinamico();
                 }
@@ -1319,15 +1372,11 @@
                 }
                 salvarEstadoLocal();
 
-                const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${conteudoRelatorioArmazenado}`).openPopup();
+                const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
-                falarTexto("Ponto marcado e salvo.");
-
-                // Reseta estado da modal e fecha
-                etapaConfirmacaoSalvar = false;
-                btnModalOk.textContent = "OK / SALVAR";
-                modalMarcar.style.display = "none";
+                falarTexto("Ponto marcado.");
             }
+            modalMarcar.style.display = "none";
         });
 
         btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
