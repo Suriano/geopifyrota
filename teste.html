@@ -639,38 +639,37 @@
         }
 
         function atualizarPainelRelatorioDinamico() {
-            // Se já houver um texto editado/salvo pelo usuário, mantém ele (a menos que a edição estivesse em aberto e não salva)
-            if (!textoRelatorioPronto) {
-                let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
-                relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
-                relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
+            let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
+            relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
+            relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
-                let contadorItem = 1;
+            let contadorItem = 1;
 
-                if (registrosTrajeto.length > 0) {
-                    registrosTrajeto.forEach((ponto) => {
-                        const hora = ponto.hora || 'N/A';
-                        const rua = (ponto.rua || 'N/A').toUpperCase();
-                        relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
-                        contadorItem++;
-                    });
-                }
-
-                if (registrosTrajeto.length === 0) {
-                    relatorioFormal += `1. NENHUM REGISTRO INFORMADO AINDA.\n`;
-                }
-
-                if (pontosDeMelhoria.length > 0) {
-                    relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
-                    pontosDeMelhoria.forEach((pm) => {
-                        const hora = pm.hora || 'N/A';
-                        const rua = (pm.rua || 'N/A').toUpperCase();
-                        const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                        relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
-                    });
-                }
-                textoRelatorioPronto = relatorioFormal;
+            if (registrosTrajeto.length > 0) {
+                registrosTrajeto.forEach((ponto) => {
+                    const hora = ponto.hora || 'N/A';
+                    const rua = (ponto.rua || 'N/A').toUpperCase();
+                    relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
+                    contadorItem++;
+                });
             }
+
+            if (registrosTrajeto.length === 0) {
+                relatorioFormal += `1. NENHUM REGISTRO INFORMADO AINDA.\n`;
+            }
+
+            if (pontosDeMelhoria.length > 0) {
+                relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                pontosDeMelhoria.forEach((pm) => {
+                    const hora = pm.hora || 'N/A';
+                    const rua = (pm.rua || 'N/A').toUpperCase();
+                    const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
+                    relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
+                });
+            }
+            
+            // Sempre atualiza o texto base com os novos pontos e ocorrências
+            textoRelatorioPronto = relatorioFormal;
 
             if (!emModoEdicao) {
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
@@ -862,8 +861,6 @@
                         coordenadas: novaCoord 
                     });
                     
-                    // Se o usuário já tinha editado o texto manualmente, não sobrescrevemos o texto inteiro com o gerador automático, apenas anexamos ou mantemos a edição salva.
-                    // Para garantir que novos pontos apareçam no texto salvo se desejado, podemos atualizar se o texto não foi modificado à mão ou atualizar a base.
                     atualizarPainelRelatorioDinamico();
                     emitirSomSalvamento();
 
@@ -1047,8 +1044,6 @@
 
                     registrosTrajeto = historico;
                     pontosDeMelhoria = pontosAtencao;
-                    
-                    // Se o arquivo JSON importado contiver um texto formatado salvo, aproveita ele; caso contrário, limpa para gerar dinamicamente
                     textoRelatorioPronto = dados.textoFormatado || "";
 
                     emModoEdicao = false;
@@ -1106,7 +1101,7 @@
                 btnEditar.textContent = "✏️ EDITAR";
                 btnEditar.style.backgroundColor = "#d35400";
                 textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                salvarEstadoLocal(); // Salva permanentemente para Marcar Ponto e Relatório
+                salvarEstadoLocal();
                 falarTexto("Alterações salvas.");
             }
         });
@@ -1226,7 +1221,7 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
-                textareaOcorrencia.value = "ABORDAGEM REALIZADA"; // Valor padrão inicial sugerido
+                textareaOcorrencia.value = "ABORDAGEM REALIZADA";
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
@@ -1249,7 +1244,6 @@
                     comentario: notaUpper 
                 });
 
-                // Assegura que caso houvesse edição prévia salva, o novo ponto marcado reflita ou preserve o estado atualizado
                 atualizarPainelRelatorioDinamico();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
