@@ -24,7 +24,6 @@
             background-color: #2c3e50;
         }
         
-        /* Estrutura Principal Flexbox para Ocupar 100% da Tela Mobile */
         #app-container {
             display: flex;
             flex-direction: column;
@@ -77,7 +76,6 @@
             filter: brightness(0.85);
         }
         
-        /* Estilos do Campo de Destino com Autocompletar */
         #btn-voz-container {
             position: relative;
             display: inline-block;
@@ -152,7 +150,6 @@
             text-overflow: ellipsis;
         }
 
-        /* Modal Customizado para Marcação de Ocorrência */
         #modal-marcar {
             display: none;
             position: fixed;
@@ -231,7 +228,6 @@
             border-radius: 4px;
         }
 
-        /* Painel Formal Estilo RSO - Otimizado como Drawer/Modal flutuante sobre o mapa */
         #painel-relatorio {
             display: none;
             position: absolute;
@@ -302,7 +298,6 @@
             resize: vertical;
         }
 
-        /* Mapa preenchendo perfeitamente o espaço remanescente da tela mobile */
         #map {
             flex: 1;
             width: 100%;
@@ -315,14 +310,13 @@
 
     <div id="app-container">
         <div id="header">
-            <h2>RELATÓRIO DE SERVIÇO OPERACIONAL[cite: 3]</h2>
-            <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span>[cite: 3]</small>
+            <h2>RELATÓRIO DE SERVIÇO OPERACIONAL</h2>
+            <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
         </div>
 
         <div id="controls">
             <button id="btn-localizacao">📍 LOCAL</button>
             
-            <!-- Campo de texto com autocomplete de Destino -->
             <div id="btn-voz-container">
                 <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
                 <div id="sugestoes-destino"></div>
@@ -341,7 +335,6 @@
         <div id="map"></div>
     </div>
 
-    <!-- Modal Personalizado de Marcação -->
     <div id="modal-marcar">
         <div class="modal-conteudo">
             <h3 id="modal-titulo-local">MARCAR OCORRÊNCIA</h3>
@@ -359,7 +352,6 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição com Edição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
@@ -372,7 +364,6 @@
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
@@ -415,6 +406,7 @@
         let ultimaLon = null;
         let textoRelatorioPronto = "";
         let emModoEdicao = false;
+        let origemFixadaInicial = false; // Controle para travar a exibição correta do endereço inicial
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -433,7 +425,6 @@
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
 
-        // Elementos do Modal Personalizado
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
@@ -450,7 +441,6 @@
             textareaOcorrencia.focus();
         }
 
-        // Dados geográficos dos setores da 1ª Cia - 6º BPM-M extraídos do KML
         const dadosSetoresKML = [
             {
                 nome: "101",
@@ -513,7 +503,7 @@
                 cor: "#FFCC80",
                 descricao: "Setor 110",
                 coordenadas: [
-                    [-23.6974166, -46.5616417], [-23.6974092, -46.5615102], [-23.697554, -46.5605705], [-23.6975663, -46.5604123], [-23.6977996, -46.5587869], [-23.6981264, -46.5571999], [-23.6981164, -46.5562817], [-23.6981299, -46.5560832], [-23.6982442, -46.5558078], [-23.6988239, -46.5552741], [-23.6988754, -46.5551882], [-23.6988901, -46.5550935], [-23.6989098, -46.55492], [-23.6988607, -46.5544104], [-23.6988705, -46.5543514], [-23.6988312, -46.5540993], [-23.6989049, -46.5538686], [-23.6989786, -46.5537881], [-23.6990768, -46.5536326], [-23.6991236, -46.5535907], [-23.6992455, -46.5534848], [-23.6992617, -46.55347], [-23.6992854, -46.5534489], [-23.6993372, -46.5533965], [-23.6979872, -46.5532965], [-23.6976679, -46.5532482], [-23.69755, -46.5532536], [-23.6970883, -46.5531731], [-23.6968132, -46.5529424], [-23.6966953, -46.5529317], [-23.6966217, -46.5531946], [-23.696322, -46.5533072], [-23.6956196, -46.5535808], [-23.6950399, -46.5538383], [-23.6943915, -46.5540958], [-23.6940378, -46.5543372], [-23.6938315, -46.5545893], [-23.6934189, -46.5551204], [-23.693247, -46.5554101], [-23.6927852, -46.5562684], [-23.6924807, -46.5568263], [-23.6918715, -46.5563971], [-23.6909363, -46.5581737], [-23.6905457, -46.5588926], [-23.6902854, -46.5593566], [-23.6901675, -46.5599064], [-23.6902878, -46.5599547], [-23.6905212, -46.5600593], [-23.6906391, -46.5602176], [-23.6907324, -46.5603812], [-23.6907472, -46.5605663], [-23.6914815, -46.5605904], [-23.6920096, -46.5605394], [-23.6923216, -46.5605421], [-23.692857, -46.5605958], [-23.6939033, -46.5607245], [-23.6947998, -46.560813], [-23.6949914, -46.5608264], [-23.6953499, -46.5608774], [-23.6956938, -46.5609847], [-23.6960426, -46.5611483], [-23.6964208, -46.5613226], [-23.6969267, -46.561564], [-23.6971085, -46.5616043], [-23.6974166, -46.5616417]
+                    [-23.6974166, -46.5616417], [-23.6974092, -46.5615102], [-23.697554, -46.5605705], [-23.6975663, -46.5604123], [-23.6977996, -46.5587869], [-23.6981264, -46.5571999], [-23.6981164, -46.5562817], [-23.6981299, -46.5560832], [-23.6982442, -46.5558078], [-23.6988239, -46.5552741], [-23.6988754, -46.5551882], [-23.6988901, -46.5550935], [-23.6989098, -46.55492], [-23.6988607, -46.5544104], [-23.6988705, -46.5543514], [-23.6988312, -46.5540993], [-23.6989049, -46.5538686], [-23.6989786, -46.5537881], [-23.6990768, -46.5536326], [-23.6991236, -46.5535907], [-23.6992455, -46.5534848], [-23.6992617, -46.55347], [-23.6992854, -46.5534489], [-23.6993372, -46.5533965], [-23.6979872, -46.5532965], [-23.6976679, -46.5532482], [-23.69755, -46.5532536], [-23.6970883, -46.5531731], [-23.6968132, -46.5529424], [-23.6966953, -46.5529317], [-23.6966217, -46.5531946], [-23.696322, -46.5533072], [-23.6956196, -46.5535808], [-23.6950399, -46.5538383], [-23.6943915, -46.5540958], [-23.6940378, -46.5543372], [-23.6938315, -46.5545893], [-23.6934189, -46.5551204], [-23.693247, -46.5554101], [-23.6927852, -46.5562684], [-23.6924807, -46.5568263], [-23.6918715, -46.5563971], [-23.6909363, -46.5581737], [-23.6905457, -46.5588926], [-23.6902854, -46.5593566], [-23.6901675, -46.5599064], [-23.6902878, -46.5599547], [-23.6905212, -46.5600593], [-23.6906391, -46.5602176], [-23.6907324, -46.5603812], [-23.6907472, -46.5605663], [-23.6914815, -46.5605904], [-23.6920096, -46.5605394], [-23.6923216, -46.5605421], [-23.692857, -46.5605958], [-23.6939033, -46.5607245], [-23.6947998, -46.560813], [-23.6949914, -46.5608264], [-23.6953499, -46.5608774], [-23.6956938, -46.5609847], [-23.6960426, -46.5611483], [-23.6964208, -46.5613226], [-23.6969267, -46.561564], [-23.7108429, -46.5545021], [-23.6971085, -46.5616043], [-23.6974166, -46.5616417]
                 ]
             },
             {
@@ -521,12 +511,11 @@
                 cor: "#CE93D8",
                 descricao: "Setor 111",
                 coordenadas: [
-                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.69266, -46.5473642]
+                    [-23.692511, -46.5483835], [-23.6921386, -46.5483513], [-23.691279, -46.5481582], [-23.6901983, -46.5479275], [-23.6897611, -46.547847], [-23.6882579, -46.5476056], [-23.6878747, -46.5475091], [-23.69266, -46.5473642]
                 ]
             }
         ];
 
-        // Renderizar os setores no mapa
         dadosSetoresKML.forEach(setor => {
             if (setor.coordenadas && setor.coordenadas.length > 0) {
                 const polygon = L.polygon(setor.coordenadas, {
@@ -639,8 +628,6 @@
         }
 
         function atualizarPainelRelatorioDinamico() {
-            // Se o usuário já tiver editado ou já existir um texto gerado anteriormente, não sobrescrevemos o texto inteiro bruto,
-            // mas anexamos a nova alteração/ponto marcado de forma inteligente.
             let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
             relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
             relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
@@ -670,10 +657,7 @@
                 });
             }
 
-            // Preserva alterações manuais anteriores se houver, anexando novos pontos marcados de forma acumulativa
             if (textoRelatorioPronto && emModoEdicao === false) {
-                // Se já havia um texto formatado ou salvo, podemos anexar o novo ponto marcado ao final sem perder o restante
-                // Ou se preferir manter o gerador automático sincronizado com os pontos adicionados:
                 textoRelatorioPronto = relatorioFormal;
             } else if (!textoRelatorioPronto) {
                 textoRelatorioPronto = relatorioFormal;
@@ -815,7 +799,12 @@
                     if (markerOrigem) map.removeLayer(markerOrigem);
                     markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map)
                         .bindPopup(`<b>LOCALIZAÇÃO ATUAL</b><br>${ruaAtualNome}`).openPopup();
-                    instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
+                    
+                    // Trava para definir a origem inicial de forma definitiva no carregamento
+                    if (!origemFixadaInicial) {
+                        instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
+                        origemFixadaInicial = true;
+                    }
                 });
             }, () => {
                 map.setView([-23.5505, -46.6333], 13);
@@ -891,6 +880,17 @@
                 if (markerOrigem) map.removeLayer(markerOrigem);
                 markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
 
+                // Garante que se a origem inicial ainda não tiver sido exibida por algum atraso de rede, ela aparece agora
+                if (!origemFixadaInicial) {
+                    obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                        ruaAtualNome = nomeRua;
+                        if (!origemFixadaInicial) {
+                            instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
+                            origemFixadaInicial = true;
+                        }
+                    });
+                }
+
                 if (isGravando) {
                     avaliarRegistroPorDistanciaOuEndereco();
                 }
@@ -941,6 +941,7 @@
                         atualizarPainelRelatorioDinamico();
                     }, 1000);
                     instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO...";
+                    origemFixadaInicial = true; // Trava para não sobrescrever o status de gravação
                 }
             } catch (e) {
                 console.error("Erro ao recuperar estado salvo", e);
@@ -949,8 +950,8 @@
 
         window.addEventListener('load', () => {
             atualizarContadorGlobal();
+            restaurarEstadoLocal(); // Restaura antes para priorizar se houver gravação ativa
             centralizarNaMinhaLocalizacao();
-            restaurarEstadoLocal();
             iniciarRastreamentoGlobal();
         });
 
@@ -1025,6 +1026,7 @@
                 painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
                 btnGravar.classList.remove('gravando');
+                origemFixadaInicial = false;
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
@@ -1034,6 +1036,7 @@
                 marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
                 marcadoresMelhoriaLayers = [];
 
+                centralizarNaMinhaLocalizacao();
                 instructionsDiv.innerHTML = "🧹 PRONTO PARA NOVO REGISTRO.";
                 falarTexto("Dados limpos.");
             }
@@ -1213,7 +1216,6 @@
             }
         });
 
-        // Evento do Botão Marcar para abrir o Modal personalizado
         let coordsAtuaisPendentes = null;
         let ruaAtualPendente = "";
 
@@ -1252,7 +1254,6 @@
                     comentario: notaUpper 
                 });
 
-                // Se o usuário já tiver editado o texto manualmente antes, adicionamos a nova marcação na seção correspondente sem sobrescrever o topo/edições prévias
                 if (textoRelatorioPronto && !textoRelatorioPronto.includes(notaUpper)) {
                     textoRelatorioPronto += `\n• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};`;
                 } else {
