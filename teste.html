@@ -126,7 +126,6 @@
         #btn-gravar { background-color: #c0392b; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
-        #btn-relatorio { background-color: #27ae60; }
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
 
@@ -338,7 +337,6 @@
 
             <button id="btn-gravar">🔴 GRAVAR</button>
             <button id="btn-marcar">⭐ MARCAR</button>
-            <button id="btn-relatorio">📋 RELATÓRIO</button>
             <button id="btn-importar">📂 ABRIR</button>
             <button id="btn-limpar">🧹 LIMPAR</button>
             <input type="file" id="input-json" style="display: none;" />
@@ -439,7 +437,6 @@
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
         const btnMarcar = document.getElementById('btn-marcar');
-        const btnRelatorio = document.getElementById('btn-relatorio');
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
@@ -624,7 +621,6 @@
                 });
             }
 
-            // Apenas atualiza se o usuário não tiver focado/editado diretamente o texto global para preservar edições ativas, ou atualiza se vazio
             if (!textoRelatorioPronto || registrosTrajeto.length > 0) {
                 textoRelatorioPronto = relatorioFormal;
             }
@@ -880,7 +876,6 @@
         });
 
         btnImportar.addEventListener('click', () => inputJson.click());
-        btnRelatorio.addEventListener('click', () => atualizarPainelRelatorioDinamico());
         btnFecharPainel.addEventListener('click', () => painelRelatorio.style.display = "none");
 
         btnLimpar.addEventListener('click', function() {
@@ -958,7 +953,7 @@
         // Eventos do Modal "Editar / Gerar Relatório"
         btnGerarRelatorioModal.addEventListener('click', function() {
             atualizarPainelRelatorioDinamico();
-            textareaRelatorioModal.value = textoRelatorioPronto; // Permite editar livremente o texto gerado
+            textareaRelatorioModal.value = textoRelatorioPronto;
             modalGerarRelatorio.style.display = "flex";
             textareaRelatorioModal.focus();
         });
@@ -968,7 +963,6 @@
         });
 
         btnModalRelatorioSalvar.addEventListener('click', async function() {
-            // Captura as alterações manuais feitas pelo usuário no textarea do modal
             textoRelatorioPronto = textareaRelatorioModal.value;
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             salvarEstadoLocal();
