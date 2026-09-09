@@ -39,15 +39,67 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             width: 280px;
             backdrop-filter: blur(5px);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        #control-panel.hidden {
+            transform: translateX(120%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Botão para reabrir o painel quando ele estiver oculto */
+        #btn-show-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 999;
+            background: rgba(255, 255, 255, 0.95);
+            border: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a73e8;
+            cursor: pointer;
+            display: none;
+            backdrop-filter: blur(5px);
+            transition: background 0.2s;
+        }
+
+        #btn-show-panel:hover {
+            background: #e8f0fe;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #e8f0fe;
+            padding-bottom: 6px;
+            margin-bottom: 12px;
         }
 
         #control-panel h2 {
             font-size: 16px;
-            margin-top: 0;
-            margin-bottom: 12px;
+            margin: 0;
             color: #1a73e8;
-            border-bottom: 2px solid #e8f0fe;
-            padding-bottom: 6px;
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 16px;
+            cursor: pointer;
+            color: #666;
+            padding: 0 4px;
+            border-radius: 4px;
+        }
+
+        .btn-close:hover {
+            background: #eee;
+            color: #000;
         }
 
         .layer-toggle {
@@ -115,16 +167,22 @@
             box-shadow: none;
             font-size: 24px;
             text-align: center;
-            margin-top: -12px !important; /* Ajuste fino para centralizar */
+            margin-top: -12px !important;
             margin-left: -12px !important;
         }
     </style>
 </head>
 <body>
 
+    <!-- Botão flutuante para reabrir o painel -->
+    <button id="btn-show-panel" onclick="alternarPainel()">🗺️ Painel</button>
+
     <!-- Painel Lateral Flutuante para Filtros -->
     <div id="control-panel">
-        <h2>🗺️ Painel Operacional</h2>
+        <div class="panel-header">
+            <h2>🗺️ Painel Operacional</h2>
+            <button class="btn-close" onclick="alternarPainel()" title="Ocultar painel">✕</button>
+        </div>
         <div id="filters-container">
             <!-- Os checkboxes das camadas serão injetados dinamicamente aqui -->
         </div>
@@ -146,31 +204,30 @@
             maxZoom: 19, attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // --- CONFIGURAÇÃO DO ÍCONE PERSONALIZADO DO POLICIAL ---
-        
-        // OPÇÃO 1: Usando uma imagem (Recomendado - substitua pelo seu link)
-        var iconePolicialImg = L.icon({
-            iconUrl: 'https://cdn-icons-png.flaticon.com/512/1034/1034182.png', // Exemplo: ícone de viatura/policial
-            iconSize: [40, 40],   // Tamanho do ícone (largura, altura)
-            iconAnchor: [20, 40], // Ponto do ícone que fica ancorado no mapa (meio embaixo)
-            popupAnchor: [0, -35] // Ponto onde o popup abre em relação ao ícone
-        });
+        // Função para alternar visibilidade do painel
+        function alternarPainel() {
+            var panel = document.getElementById('control-panel');
+            var btnShow = document.getElementById('btn-show-panel');
+            
+            panel.classList.toggle('hidden');
+            
+            if (panel.classList.contains('hidden')) {
+                btnShow.style.display = 'block';
+            } else {
+                btnShow.style.display = 'none';
+            }
+        }
 
-        // OPÇÃO 2: Usando Emoji (Alternativa rápida, já configurada abaixo)
+        // --- CONFIGURAÇÃO DO ÍCONE PERSONALIZADO DO POLICIAL ---
         var iconePolicialEmoji = L.divIcon({
-            className: 'policial-marker-label', // Classe CSS definida no <style>
-            html: '👮‍♂️', // Emoji do policial
+            className: 'policial-marker-label',
+            html: '👮‍♂️',
             iconSize: [24, 24],
             iconAnchor: [12, 24],
             popupAnchor: [0, -20]
         });
 
-        // Escolha qual ícone usar aqui:
-   //     var meuIconeFinal = iconePolicialImg; // Mude para 'iconePolicialEmoji' se preferir o emoji
-          var meuIconeFinal = iconePolicialEmoji; // '👮‍♂️'
-
-        
-        // -----------------------------------------------------
+        var meuIconeFinal = iconePolicialEmoji; 
 
         function styleFeature(feature) {
             var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
@@ -235,11 +292,9 @@
         }
 
         function encontrarLocalizacao() {
-            // Define a opção para usar o ícone customizado ao encontrar a localização
             map.locate({setView: true, maxZoom: 16, watch: false});
         }
 
-        // Evento disparado quando o GPS é encontrado
         map.on('locationfound', function(e) {
             var radius = e.accuracy;
 
@@ -248,12 +303,10 @@
                 map.removeLayer(circleLocalizacao);
             }
 
-            // --- ADICIONA O MARCADOR COM O ÍCONE CUSTOMIZADO ---
             markerLocalizacao = L.marker(e.latlng, {
-                icon: meuIconeFinal // Aqui usamos o ícone configurado no topo
+                icon: meuIconeFinal 
             }).addTo(map)
               .bindPopup("<b>Patrulheiro</b><br>Precisão: " + Math.round(radius) + " metros.").openPopup();
-            // -----------------------------------------------------
 
             circleLocalizacao = L.circle(e.latlng, radius, {
                 color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 0.15, weight: 1
