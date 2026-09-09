@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Setores - Painel Interativo</title>
+
+    <!-- 1. Importa o CSS do Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        /* Estilos gerais da página */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Painel de Controle / Filtros Moderno (Estilo Card Flutuante) */
+        #control-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 18px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            width: 280px;
+            backdrop-filter: blur(5px);
+        }
+
+        #control-panel h2 {
+            font-size: 16px;
+            margin-top: 0;
+            margin-bottom: 12px;
+            color: #1a73e8;
+            border-bottom: 2px solid #e8f0fe;
+            padding-bottom: 6px;
+        }
+
+        .layer-toggle {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .layer-toggle input {
+            margin-right: 8px;
+            accent-color: #1a73e8;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .btn-reset {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+
+        .btn-reset:hover {
+            background-color: #1557b0;
+        }
+
+        /* Estilização personalizada dos Popups do Leaflet */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 0;
+            overflow: hidden;
+        }
+        .leaflet-popup-content {
+            margin: 14px 18px;
+            line-height: 1.5;
+        }
+        .leaflet-popup-content b {
+            color: #1a73e8;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Painel Lateral Flutuante para Filtros -->
+    <div id="control-panel">
+        <h2>🗺️ Painel de Setores</h2>
+        <div id="filters-container">
+            <!-- Os checkboxes das camadas serão injetados dinamicamente aqui -->
+        </div>
+        <button class="btn-reset" onclick="resetarZoom()">Centralizar Mapa</button>
+    </div>
+
+    <!-- Elemento do Mapa -->
+    <div id="map"></div>
+
+    <!-- 2. Importa o JS do Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Inicializa o mapa centralizado provisoriamente
+        var map = L.map('map', { zoomControl: false }).setView([-23.5505, -46.6333], 13);
+
+        // Reposiciona os controles de zoom padrão para o canto inferior direito para não bater com o painel
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // Adiciona a camada de mapa base (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Função de estilo dinâmica para ler a cor de cada setor do GeoJSON
+        function styleFeature(feature) {
+            var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
+            var opacidadePreenchimento = (feature.properties && feature.properties['fill-opacity'] !== undefined) 
+                ? feature.properties['fill-opacity'] 
+                : 0.45;
+
+            return {
+                color: corSetor,          // Cor da borda
+                weight: 2.5,              // Espessura da borda
+                fillColor: corSetor,      // Cor do preenchimento
+                fillOpacity: opacidadePreenchimento 
+            };
+        }
+
+        // Função executada para cada feição para criar os popups informativos
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                let nome = feature.properties.name || feature.properties.Name || 'Setor / Local';
+                let descricao = feature.properties.description || '';
+                
+                if (typeof descricao === 'object' && descricao.value) {
+                    descricao = descricao.value;
+                }
+
+                let conteudoPopup = `<b>${nome}</b>`;
+                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') {
+                    conteudoPopup += `<br><span style="color: #555;">${descricao}</span>`;
+                }
+                layer.bindPopup(conteudoPopup);
+
+                // Efeito visual sutil ao passar o mouse por cima do polígono
+                layer.on({
+                    mouseover: function(e) {
+                        var l = e.target;
+                        l.setStyle({ weight: 4, fillOpacity: 0.7 });
+                    },
+                    mouseout: function(e) {
+                        var l = e.target;
+                        l.setStyle(styleFeature(l.feature));
+                    }
+                });
+            }
+        }
+
+        var groupLayer = new L.FeatureGroup();
+        var listaCamadas = []; // Armazenará referências para manipulação do painel
+
+        // Definição dos arquivos GeoJSON a carregar (Adicione quantos arquivos precisar aqui)
+        var fontesGeoJson = [
+            { nome: "Arquivo Principal (Untitled 1)", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' },
+            { nome: "Arquivo Secundário (Untitled 2)", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' }
+        ];
+
+        // Função para carregar um arquivo GeoJSON individualmente
+        function carregarArquivo(fonte, index) {
+            return fetch(fonte.url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro ao baixar: ' + fonte.url);
+                    return response.json();
+                })
+                .then(data => {
+                    var camadaGeoJson = L.geoJSON(data, {
+                        style: styleFeature,
+                        onEachFeature: onEachFeature
+                    });
+
+                    // Adiciona ao mapa global e ao grupo de bounds
+                    camadaGeoJson.addTo(map);
+                    groupLayer.addLayer(camadaGeoJson);
+
+                    // Guarda referência para controle
+                    listaCamadas.push({
+                        nome: fonte.nome,
+                        layer: camadaGeoJson
+                    });
+
+                    // Cria o elemento de checkbox no painel lateral
+                    criarCheckboxFiltro(fonte.nome, index, camadaGeoJson);
+                })
+                .catch(error => {
+                    console.error("Erro ao carregar " + fonte.nome + ":", error);
+                });
+        }
+
+        // Cria dinamicamente os controles na interface lateral
+        function criarCheckboxFiltro(nomeCamada, index, layerRef) {
+            var container = document.getElementById('filters-container');
+            
+            var label = document.createElement('label');
+            label.className = 'layer-toggle';
+
+            var checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = true;
+            checkbox.id = 'chk-' + index;
+
+            // Evento para ligar/desligar a camada ao clicar no checkbox
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    map.addLayer(layerRef);
+                } else {
+                    map.removeLayer(layerRef);
+                }
+            });
+
+            var span = document.createElement('span');
+            span.innerText = nomeCamada;
+
+            label.appendChild(checkbox);
+            label.appendChild(span);
+            container.appendChild(label);
+        }
+
+        // Função para reenquadrar o mapa com base nos dados visíveis
+        function resetarZoom() {
+            if (groupLayer.getLayers().length > 0) {
+                map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
+            }
+        }
+
+        // Inicializa o carregamento de todos os arquivos definidos
+        Promise.all(fontesGeoJson.map((fonte, idx) => carregarArquivo(fonte, idx)))
+            .then(() => {
+                resetarZoom();
+            });
+
+    </script>
+</body>
+</html>
