@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>Mapa KML - Leaflet</title>
+    <title>Setores 1ª Cia - 6º BPM/M</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         #map { width: 100%; height: 600px; }
@@ -13,29 +13,50 @@
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Importa o plugin para leitura de KML -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-kml/1.0.1/L.KML.min.js"></script>
-    
     <script>
+        // 1. Inicializa o mapa centralizado em São Bernardo do Campo (região aproximada)
         var map = L.map('map').setView([-23.705, -46.545], 14);
 
+        // 2. Adiciona camada de mapa base (OpenStreetMap)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Carrega o arquivo KML via AJAX/Fetch
-        fetch('Setores 1ª Cia - 6º BPM-M.kml')
-            .then(res => res.text())
-            .then(kmlText => {
-                const parser = new DOMParser();
-                const kmlDom = parser.parseFromString(kmlText, 'text/xml');
-                const kmlLayer = new L.KML(kmlDom);
-                
-                map.addLayer(kmlLayer);
-                
-                // Ajusta o zoom para a camada carregada
-                map.fitBounds(kmlLayer.getBounds());
-            });
+        // 3. Função para estilizar os polígonos dos setores com base nas propriedades do KML/GeoJSON
+        function styleFeature(feature) {
+            return {
+                color: '#3388ff',       // Cor da borda
+                weight: 1.2,
+                fillColor: '#3388ff',   // Cor de preenchimento (pode adaptar com base nas cores do KML)
+                fillOpacity: 0.3        // Transparência estilo KML (77 hex / ~30%)
+            };
+        }
+
+        // 4. Função para exibir o nome do setor/ponto ao clicar
+        function onEachFeature(feature, layer) {
+            if (feature.properties && feature.properties.name) {
+                let popupContent = `<b>${feature.properties.name}</b>`;
+                if (feature.properties.description) {
+                    popupContent += `<br>${feature.properties.description}`;
+                }
+                layer.bindPopup(popupContent);
+            }
+        }
+
+        // 5. Carrega o arquivo GeoJSON para o Leaflet
+        fetch('setores.geojson')
+            .then(response => response.json())
+            .then(data => {
+                var setoresLayer = L.geoJSON(data, {
+                    style: styleFeature,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+
+                // Ajusta o zoom do mapa automaticamente para os limites dos setores
+                map.fitBounds(setoresLayer.getBounds());
+            })
+            .catch(error => console.error('Erro ao carregar o GeoJSON:', error));
     </script>
 </body>
 </html>
