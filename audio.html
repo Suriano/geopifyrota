@@ -211,7 +211,7 @@
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
-            padding-right: 35px;
+            padding-right: 40px;
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
@@ -223,15 +223,10 @@
             background-color: #8e44ad;
             color: white;
             border: none;
-            border-radius: 4px;
-            width: 28px;
-            height: 28px;
+            padding: 6px 8px;
             font-size: 14px;
+            border-radius: 4px;
             cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
         }
         #btn-transcrever-modal.ouvindo {
             background-color: #e74c3c;
@@ -423,12 +418,10 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
-            
             <div class="textarea-container">
-                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU FALE A OCORRÊNCIA..."></textarea>
-                <button type="button" id="btn-transcrever-modal" title="Falar / Transcrever">🎤</button>
+                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+                <button type="button" id="btn-transcrever-modal" title="Transcrever voz para texto">🎙️</button>
             </div>
-
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -495,7 +488,7 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
-        // Variáveis para gravação de áudio geral
+        // Variáveis para gravação de áudio
         let mediaRecorder = null;
         let audioChunks = [];
         let isGravandoAudio = false;
@@ -555,31 +548,32 @@
             textareaOcorrencia.focus();
         }
 
-        // --- TRANSCRIÇÃO DE VOZ NA MODAL (Web Speech API) ---
+        // --- TRANSCRIÇÃO DE VOZ NO MODAL ---
         let recognitionModal = null;
-        if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             recognitionModal = new SpeechRecognition();
             recognitionModal.lang = 'pt-BR';
+            recognitionModal.continuous = false;
             recognitionModal.interimResults = false;
-            recognitionModal.maxAlternatives = 1;
 
             recognitionModal.onresult = (event) => {
                 const transcricao = event.results[0][0].transcript.toUpperCase();
-                inserirAtalho(transcricao);
+                const atual = textareaOcorrencia.value.trim();
+                textareaOcorrencia.value = atual ? atual + " " + transcricao : transcricao;
                 btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎤";
+                btnTranscreverModal.textContent = "🎙️";
+                textareaOcorrencia.focus();
             };
 
-            recognitionModal.onerror = (event) => {
-                console.error("Erro na transcrição:", event.error);
+            recognitionModal.onerror = () => {
                 btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎤";
+                btnTranscreverModal.textContent = "🎙️";
             };
 
             recognitionModal.onend = () => {
                 btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎤";
+                btnTranscreverModal.textContent = "🎙️";
             };
         }
 
@@ -588,20 +582,15 @@
                 alert("Seu navegador não suporta reconhecimento de voz.");
                 return;
             }
-            try {
-                if (btnTranscreverModal.classList.contains('ouvindo')) {
-                    recognitionModal.stop();
-                    btnTranscreverModal.classList.remove('ouvindo');
-                    btnTranscreverModal.textContent = "🎤";
-                } else {
-                    recognitionModal.start();
-                    btnTranscreverModal.classList.add('ouvindo');
-                    btnTranscreverModal.textContent = "⏹️";
-                }
-            } catch (e) {
-                console.error(e);
+            if (btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            } else {
+                recognitionModal.start();
+                btnTranscreverModal.classList.add('ouvindo');
+                btnTranscreverModal.textContent = "⏹️";
             }
         });
+        // -----------------------------------
 
         const dadosSetoresKML = [
             {
@@ -665,7 +654,7 @@
             }
         }
 
-        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO GERAL ---
+        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO ---
         btnAudio.addEventListener('click', async () => {
             if (!isGravandoAudio) {
                 try {
@@ -731,6 +720,7 @@
                     const acoesDiv = document.createElement('div');
                     acoesDiv.className = 'audio-acoes';
 
+                    // Botão Salvar (Download)
                     const btnSalvar = document.createElement('button');
                     btnSalvar.className = 'btn-audio-acao btn-salvar-audio';
                     btnSalvar.textContent = '💾';
@@ -744,6 +734,7 @@
                         document.body.removeChild(a);
                     };
 
+                    // Botão Excluir
                     const btnExcluir = document.createElement('button');
                     btnExcluir.className = 'btn-audio-acao btn-excluir-audio';
                     btnExcluir.textContent = '❌';
@@ -769,6 +760,7 @@
                 containerAudiosSalvos.style.display = "none";
             }
         }
+        // ------------------------------------
 
         function emitirSomSalvamento() {
             try {
@@ -1059,9 +1051,17 @@
             });
         });
 
-        btnModalCancelar.addEventListener('click', () => modalMarcar.style.display = "none");
+        btnModalCancelar.addEventListener('click', () => {
+            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            }
+            modalMarcar.style.display = "none";
+        });
 
         btnModalOk.addEventListener('click', function() {
+            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            }
             const nota = textareaOcorrencia.value.trim();
             if (nota !== "") {
                 const horaAtual = new Date().toLocaleTimeString('pt-BR');
