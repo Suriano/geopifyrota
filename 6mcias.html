@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapa de Setores - Painel Interativo</title>
+    <title>Mapa de Setores - Painel Operacional</title>
 
     <!-- 1. Importa o CSS do Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -108,17 +108,27 @@
             color: #1a73e8;
             font-size: 14px;
         }
+        /* Estilo para o marcador de texto (caso use emoji) */
+        .policial-marker-label {
+            background: transparent;
+            border: none;
+            box-shadow: none;
+            font-size: 24px;
+            text-align: center;
+            margin-top: -12px !important; /* Ajuste fino para centralizar */
+            margin-left: -12px !important;
+        }
     </style>
 </head>
 <body>
 
     <!-- Painel Lateral Flutuante para Filtros -->
     <div id="control-panel">
-        <h2>🗺️ Painel de Setores</h2>
+        <h2>🗺️ Painel Operacional</h2>
         <div id="filters-container">
             <!-- Os checkboxes das camadas serão injetados dinamicamente aqui -->
         </div>
-        <button class="btn-action btn-location" onclick="encontrarLocalizacao()">📍 Minha Localização</button>
+        <button class="btn-action btn-location" onclick="encontrarLocalizacao()">📍 Minha Posição (Vtr)</button>
         <button class="btn-action" onclick="resetarZoom()">Centralizar Setores</button>
     </div>
 
@@ -129,75 +139,70 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // Inicializa o mapa centralizado provisoriamente
+        // Inicializa o mapa
         var map = L.map('map', { zoomControl: false }).setView([-23.5505, -46.6333], 13);
-
-        // Reposiciona os controles de zoom padrão para o canto inferior direito para não bater com o painel
         L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        // Adiciona a camada de mapa base (OpenStreetMap)
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap contributors'
+            maxZoom: 19, attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
-        // Função de estilo dinâmica para ler a cor de cada setor do GeoJSON
+        // --- CONFIGURAÇÃO DO ÍCONE PERSONALIZADO DO POLICIAL ---
+        
+        // OPÇÃO 1: Usando uma imagem (Recomendado - substitua pelo seu link)
+        var iconePolicialImg = L.icon({
+            iconUrl: 'https://cdn-icons-png.flaticon.com/512/1034/1034182.png', // Exemplo: ícone de viatura/policial
+            iconSize: [40, 40],   // Tamanho do ícone (largura, altura)
+            iconAnchor: [20, 40], // Ponto do ícone que fica ancorado no mapa (meio embaixo)
+            popupAnchor: [0, -35] // Ponto onde o popup abre em relação ao ícone
+        });
+
+        // OPÇÃO 2: Usando Emoji (Alternativa rápida, já configurada abaixo)
+        var iconePolicialEmoji = L.divIcon({
+            className: 'policial-marker-label', // Classe CSS definida no <style>
+            html: '👮‍♂️', // Emoji do policial
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+            popupAnchor: [0, -20]
+        });
+
+        // Escolha qual ícone usar aqui:
+        var meuIconeFinal = iconePolicialImg; // Mude para 'iconePolicialEmoji' se preferir o emoji
+
+        // -----------------------------------------------------
+
         function styleFeature(feature) {
             var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
             var opacidadePreenchimento = (feature.properties && feature.properties['fill-opacity'] !== undefined) 
                 ? feature.properties['fill-opacity'] 
                 : 0.45;
-
-            return {
-                color: corSetor,          // Cor da borda
-                weight: 2.5,              // Espessura da borda
-                fillColor: corSetor,      // Cor do preenchimento
-                fillOpacity: opacidadePreenchimento 
-            };
+            return { color: corSetor, weight: 2.5, fillColor: corSetor, fillOpacity: opacidadePreenchimento };
         }
 
-        // Função executada para cada feição para criar os popups informativos
         function onEachFeature(feature, layer) {
             if (feature.properties) {
-                let nome = feature.properties.name || feature.properties.Name || 'Setor / Local';
+                let nome = feature.properties.name || feature.properties.Name || 'Setor';
                 let descricao = feature.properties.description || '';
-                
-                if (typeof descricao === 'object' && descricao.value) {
-                    descricao = descricao.value;
-                }
-
+                if (typeof descricao === 'object' && descricao.value) descricao = descricao.value;
                 let conteudoPopup = `<b>${nome}</b>`;
-                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') {
+                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') 
                     conteudoPopup += `<br><span style="color: #555;">${descricao}</span>`;
-                }
                 layer.bindPopup(conteudoPopup);
-
-                // Efeito visual sutil ao passar o mouse por cima do polígono
                 layer.on({
-                    mouseover: function(e) {
-                        var l = e.target;
-                        l.setStyle({ weight: 4, fillOpacity: 0.7 });
-                    },
-                    mouseout: function(e) {
-                        var l = e.target;
-                        l.setStyle(styleFeature(l.feature));
-                    }
+                    mouseover: function(e) { e.target.setStyle({ weight: 4, fillOpacity: 0.7 }); },
+                    mouseout: function(e) { e.target.setStyle(styleFeature(e.target.feature)); }
                 });
             }
         }
 
         var groupLayer = new L.FeatureGroup();
-        var listaCamadas = []; // Armazenará referências para manipulação do painel
-        var markerLocalizacao = null; // Variável para controlar o marcador do usuário
-        var circleLocalizacao = null; // Variável para controlar o círculo de precisão
+        var markerLocalizacao = null; 
+        var circleLocalizacao = null; 
 
-        // Definição dos arquivos GeoJSON a carregar
         var fontesGeoJson = [
           { nome: "Setores 1ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' },
           { nome: "Setores 3ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' }   
         ];
 
-        // Função para carregar um arquivo GeoJSON individualmente
         function carregarArquivo(fonte, index) {
             return fetch(fonte.url)
                 .then(response => {
@@ -205,104 +210,60 @@
                     return response.json();
                 })
                 .then(data => {
-                    var camadaGeoJson = L.geoJSON(data, {
-                        style: styleFeature,
-                        onEachFeature: onEachFeature
-                    });
-
-                    // Adiciona ao mapa global e ao grupo de bounds
+                    var camadaGeoJson = L.geoJSON(data, { style: styleFeature, onEachFeature: onEachFeature });
                     camadaGeoJson.addTo(map);
                     groupLayer.addLayer(camadaGeoJson);
-
-                    // Guarda referência para controle
-                    listaCamadas.push({
-                        nome: fonte.nome,
-                        layer: camadaGeoJson
-                    });
-
-                    // Cria o elemento de checkbox no painel lateral
                     criarCheckboxFiltro(fonte.nome, index, camadaGeoJson);
-                })
-                .catch(error => {
-                    console.error("Erro ao carregar " + fonte.nome + ":", error);
-                });
+                }).catch(error => console.error("Erro ao carregar " + fonte.nome + ":", error));
         }
 
-        // Cria dinamicamente os controles na interface lateral
         function criarCheckboxFiltro(nomeCamada, index, layerRef) {
             var container = document.getElementById('filters-container');
-            
-            var label = document.createElement('label');
-            label.className = 'layer-toggle';
-
-            var checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = true;
-            checkbox.id = 'chk-' + index;
-
-            // Evento para ligar/desligar a camada ao clicar no checkbox
+            var label = document.createElement('label'); label.className = 'layer-toggle';
+            var checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = true; checkbox.id = 'chk-' + index;
             checkbox.addEventListener('change', function() {
-                if (this.checked) {
-                    map.addLayer(layerRef);
-                } else {
-                    map.removeLayer(layerRef);
-                }
+                if (this.checked) map.addLayer(layerRef); else map.removeLayer(layerRef);
             });
-
-            var span = document.createElement('span');
-            span.innerText = nomeCamada;
-
-            label.appendChild(checkbox);
-            label.appendChild(span);
-            container.appendChild(label);
+            var span = document.createElement('span'); span.innerText = nomeCamada;
+            label.appendChild(checkbox); label.appendChild(span); container.appendChild(label);
         }
 
-        // Função para reenquadrar o mapa com base nos dados visíveis dos setores
         function resetarZoom() {
-            if (groupLayer.getLayers().length > 0) {
-                map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
-            }
+            if (groupLayer.getLayers().length > 0) map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
         }
 
-        // Função para obter e exibir a localização atual do usuário no mapa
         function encontrarLocalizacao() {
-            // O Leaflet gerencia a localização via API do navegador
+            // Define a opção para usar o ícone customizado ao encontrar a localização
             map.locate({setView: true, maxZoom: 16, watch: false});
         }
 
-        // Evento disparado quando o Leaflet obtém com sucesso a posição do GPS
+        // Evento disparado quando o GPS é encontrado
         map.on('locationfound', function(e) {
-            var radius = e.accuracy; // Precisão em metros
+            var radius = e.accuracy;
 
-            // Remove marcador anterior se já existir para não acumular
             if (markerLocalizacao) {
                 map.removeLayer(markerLocalizacao);
                 map.removeLayer(circleLocalizacao);
             }
 
-            // Adiciona um marcador de ponto azul customizado na posição do usuário
-            markerLocalizacao = L.marker(e.latlng).addTo(map)
-                .bindPopup("<b>Você está aqui!</b><br>Precisão de " + Math.round(radius) + " metros.").openPopup();
+            // --- ADICIONA O MARCADOR COM O ÍCONE CUSTOMIZADO ---
+            markerLocalizacao = L.marker(e.latlng, {
+                icon: meuIconeFinal // Aqui usamos o ícone configurado no topo
+            }).addTo(map)
+              .bindPopup("<b>Viatura Operacional</b><br>Precisão: " + Math.round(radius) + " metros.").openPopup();
+            // -----------------------------------------------------
 
-            // Adiciona um círculo translúcido indicando a margem de precisão da geolocalização
             circleLocalizacao = L.circle(e.latlng, radius, {
-                color: '#1a73e8',
-                fillColor: '#1a73e8',
-                fillOpacity: 0.15,
-                weight: 1
+                color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 0.15, weight: 1
             }).addTo(map);
         });
 
-        // Evento disparado caso ocorra erro (ex: usuário negou permissão de GPS)
         map.on('locationerror', function(e) {
             alert("Não foi possível obter sua localização. Verifique se o GPS está ativado e se permitiu o acesso no navegador.");
         });
 
-        // Inicializa o carregamento de todos os arquivos definidos
         Promise.all(fontesGeoJson.map((fonte, idx) => carregarArquivo(fonte, idx)))
-            .then(() => {
-                resetarZoom();
-            });
+            .then(() => resetarZoom());
 
     </script>
 </body>
