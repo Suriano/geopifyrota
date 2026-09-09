@@ -24,7 +24,7 @@
         }).addTo(map);
 
         // Carrega o arquivo KML via AJAX/Fetch
-        fetch('Setores 1ª Cia - 6º BPM-M.kml.xml')
+        fetch('Setores 1ª Cia - 6º BPM-M.kml')
             .then(res => res.text())
             .then(kmlText => {
                 const parser = new DOMParser();
