@@ -206,34 +206,34 @@
         }
         #textarea-ocorrencia {
             width: 100%;
-            height: 80px;
+            height: 90px;
             font-family: Arial, sans-serif;
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
-            padding-right: 35px; /* Espaço para o botão de microfone interno */
+            padding-right: 35px; /* Espaço para o botão de microfone */
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
         }
-        #btn-falar-modal {
+        #btn-voz-modal {
             position: absolute;
             bottom: 8px;
             right: 6px;
             background-color: #8e44ad;
             color: white;
             border: none;
-            border-radius: 4px;
             width: 28px;
             height: 28px;
-            font-size: 14px;
+            border-radius: 50%;
+            font-size: 13px;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
             padding: 0;
         }
-        #btn-falar-modal.ouvindo {
+        #btn-voz-modal.ouvindo {
             background-color: #e74c3c;
             animation: pulsar 1.5s infinite;
         }
@@ -406,10 +406,12 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
+            
             <div class="textarea-container">
                 <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
-                <button type="button" id="btn-falar-modal" title="Ditar ocorrência por voz">🎙️</button>
+                <button type="button" id="btn-voz-modal" title="Ditar ocorrência por voz">🎙️</button>
             </div>
+
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -450,7 +452,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
 
-    <script>
+    <script[cite: 2]>
         const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
 
         const map = L.map('map', {
@@ -517,9 +519,9 @@
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
-        const btnFalarModal = document.getElementById('btn-falar-modal');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
+        const btnVozModal = document.getElementById('btn-voz-modal');
 
         const modalGerarRelatorio = document.getElementById('modal-gerar-relatorio');
         const textareaRelatorioModal = document.getElementById('textarea-relatorio-modal');
@@ -536,49 +538,54 @@
             textareaOcorrencia.focus();
         }
 
-        // --- RECONHECIMENTO DE VOZ PARA O MODAL DE MARCAÇÃO ---
-        let recognitionModal = null;
+        // --- RECONHECIMENTO DE VOZ NO MODAL DE MARCAÇÃO ---
+        let recognition = null;
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognitionModal = new SpeechRecognition();
-            recognitionModal.lang = 'pt-BR';
-            recognitionModal.continuous = false;
-            recognitionModal.interimResults = false;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
 
-            recognitionModal.onresult = (event) => {
-                const textoDitado = event.results[0][0].transcript.toUpperCase();
-                inserirAtalho(textoDitado);
-                btnFalarModal.classList.remove('ouvindo');
+            recognition.onresult = (event) => {
+                const transcricao = event.results[0][0].transcript.toUpperCase();
+                inserirAtalho(transcricao);
+                btnVozModal.classList.remove('ouvindo');
+                btnVozModal.textContent = "🎙️";
             };
 
-            recognitionModal.onerror = () => {
-                btnFalarModal.classList.remove('ouvindo');
+            recognition.onerror = (event) => {
+                console.error("Erro no reconhecimento de voz:", event.error);
+                btnVozModal.classList.remove('ouvindo');
+                btnVozModal.textContent = "🎙️";
             };
 
-            recognitionModal.onend = () => {
-                btnFalarModal.classList.remove('ouvindo');
+            recognition.onend = () => {
+                btnVozModal.classList.remove('ouvindo');
+                btnVozModal.textContent = "🎙️";
             };
         }
 
-        btnFalarModal.addEventListener('click', () => {
-            if (!recognitionModal) {
-                alert("Seu navegador não suporta reconhecimento de voz.");
+        btnVozModal.addEventListener('click', () => {
+            if (!recognition) {
+                alert("O reconhecimento de voz não é suportado neste navegador.");
                 return;
             }
-            if (btnFalarModal.classList.contains('ouvindo')) {
-                recognitionModal.stop();
-                btnFalarModal.classList.remove('ouvindo');
-            } else {
-                try {
-                    recognitionModal.start();
-                    btnFalarModal.classList.add('ouvindo');
-                } catch (e) {
-                    recognitionModal.stop();
-                    btnFalarModal.classList.remove('ouvindo');
+            try {
+                if (btnVozModal.classList.contains('ouvindo')) {
+                    recognition.stop();
+                    btnVozModal.classList.remove('ouvindo');
+                    btnVozModal.textContent = "🎙️";
+                } else {
+                    recognition.start();
+                    btnVozModal.classList.add('ouvindo');
+                    btnVozModal.textContent = "⏹️";
                 }
+            } catch (e) {
+                console.error(e);
             }
         });
-        // -----------------------------------------------------
+        // --------------------------------------------------
 
         const dadosSetoresKML = [
             {
@@ -713,7 +720,7 @@
                 containerAudiosSalvos.style.display = "none";
             }
         }
-        // ------------------------------------
+        // ------------------------------------------
 
         function emitirSomSalvamento() {
             try {
