@@ -252,7 +252,7 @@
             markerLocalizacao = L.marker(e.latlng, {
                 icon: meuIconeFinal // Aqui usamos o ícone configurado no topo
             }).addTo(map)
-              .bindPopup("<b>Seu local Patrulheiro</b><br>Precisão: " + Math.round(radius) + " metros.").openPopup();
+              .bindPopup("<b>Patrulheiro</b><br>Precisão: " + Math.round(radius) + " metros.").openPopup();
             // -----------------------------------------------------
 
             circleLocalizacao = L.circle(e.latlng, radius, {
