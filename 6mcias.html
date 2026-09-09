@@ -67,22 +67,31 @@
             cursor: pointer;
         }
 
-        .btn-reset {
+        .btn-action {
             background-color: #1a73e8;
             color: white;
             border: none;
-            padding: 8px 12px;
+            padding: 9px 12px;
             border-radius: 6px;
             width: 100%;
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: background 0.2s;
-            margin-top: 5px;
+            margin-top: 6px;
+            text-align: center;
         }
 
-        .btn-reset:hover {
+        .btn-action:hover {
             background-color: #1557b0;
+        }
+
+        .btn-location {
+            background-color: #34a853;
+        }
+
+        .btn-location:hover {
+            background-color: #2e8b44;
         }
 
         /* Estilização personalizada dos Popups do Leaflet */
@@ -109,7 +118,8 @@
         <div id="filters-container">
             <!-- Os checkboxes das camadas serão injetados dinamicamente aqui -->
         </div>
-        <button class="btn-reset" onclick="resetarZoom()">Centralizar Mapa</button>
+        <button class="btn-action btn-location" onclick="encontrarLocalizacao()">📍 Minha Localização</button>
+        <button class="btn-action" onclick="resetarZoom()">Centralizar Setores</button>
     </div>
 
     <!-- Elemento do Mapa -->
@@ -178,12 +188,13 @@
 
         var groupLayer = new L.FeatureGroup();
         var listaCamadas = []; // Armazenará referências para manipulação do painel
+        var markerLocalizacao = null; // Variável para controlar o marcador do usuário
+        var circleLocalizacao = null; // Variável para controlar o círculo de precisão
 
-        // Definição dos arquivos GeoJSON a carregar (Adicione quantos arquivos precisar aqui)
+        // Definição dos arquivos GeoJSON a carregar
         var fontesGeoJson = [
-            { nome: "Setores 1ª Cia 6º BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' },
-            { nome: "Setores 3ª Cia 6º BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' }
-            
+            { nome: "Arquivo Principal (Untitled 1)", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' },
+            { nome: "Arquivo Secundário (Untitled 2)", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' }
         ];
 
         // Função para carregar um arquivo GeoJSON individualmente
@@ -246,12 +257,46 @@
             container.appendChild(label);
         }
 
-        // Função para reenquadrar o mapa com base nos dados visíveis
+        // Função para reenquadrar o mapa com base nos dados visíveis dos setores
         function resetarZoom() {
             if (groupLayer.getLayers().length > 0) {
                 map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
             }
         }
+
+        // Função para obter e exibir a localização atual do usuário no mapa
+        function encontrarLocalizacao() {
+            // O Leaflet gerencia a localização via API do navegador
+            map.locate({setView: true, maxZoom: 16, watch: false});
+        }
+
+        // Evento disparado quando o Leaflet obtém com sucesso a posição do GPS
+        map.on('locationfound', function(e) {
+            var radius = e.accuracy; // Precisão em metros
+
+            // Remove marcador anterior se já existir para não acumular
+            if (markerLocalizacao) {
+                map.removeLayer(markerLocalizacao);
+                map.removeLayer(circleLocalizacao);
+            }
+
+            // Adiciona um marcador de ponto azul customizado na posição do usuário
+            markerLocalizacao = L.marker(e.latlng).addTo(map)
+                .bindPopup("<b>Você está aqui!</b><br>Precisão de " + Math.round(radius) + " metros.").openPopup();
+
+            // Adiciona um círculo translúcido indicando a margem de precisão da geolocalização
+            circleLocalizacao = L.circle(e.latlng, radius, {
+                color: '#1a73e8',
+                fillColor: '#1a73e8',
+                fillOpacity: 0.15,
+                weight: 1
+            }).addTo(map);
+        });
+
+        // Evento disparado caso ocorra erro (ex: usuário negou permissão de GPS)
+        map.on('locationerror', function(e) {
+            alert("Não foi possível obter sua localização. Verifique se o GPS está ativado e se permitiu o acesso no navegador.");
+        });
 
         // Inicializa o carregamento de todos os arquivos definidos
         Promise.all(fontesGeoJson.map((fonte, idx) => carregarArquivo(fonte, idx)))
