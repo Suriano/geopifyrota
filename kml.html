@@ -44,19 +44,23 @@
             }
         }
 
-        // 5. Carrega o arquivo GeoJSON para o Leaflet
-        fetch('setores.geojson')
-            .then(response => response.json())
-            .then(data => {
-                var setoresLayer = L.geoJSON(data, {
-                    style: styleFeature,
-                    onEachFeature: onEachFeature
-                }).addTo(map);
 
-                // Ajusta o zoom do mapa automaticamente para os limites dos setores
-                map.fitBounds(setoresLayer.getBounds());
-            })
-            .catch(error => console.error('Erro ao carregar o GeoJSON:', error));
+
+// Substitua pela URL "Raw" real do seu arquivo no GitHub
+var urlGeoJson = 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json';
+
+fetch(urlGeoJson)
+    .then(response => response.json())
+    .then(data => {
+        var setoresLayer = L.geoJSON(data, {
+            style: styleFeature,
+            onEachFeature: onEachFeature
+        }).addTo(map);
+
+        map.fitBounds(setoresLayer.getBounds());
+    })
+    .catch(error => console.error('Erro ao carregar o GeoJSON do GitHub:', error));
+
     </script>
 </body>
 </html>
