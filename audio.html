@@ -95,38 +95,14 @@
             color: white;
             opacity: 0.9;
         }
-        #sugestoes-destino {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 0 0 6px 6px;
-            z-index: 2000;
-            max-height: 180px;
-            overflow-y: auto;
-            text-align: left;
-            display: none;
-            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
-        }
-        .sugestao-item {
-            padding: 10px;
-            font-size: 11px;
-            color: #333;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
-        .sugestao-item:hover {
-            background-color: #f1f2f6;
-        }
 
         #btn-localizacao { background-color: #34495e; }
         #btn-gravar { background-color: #c0392b; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
         #btn-audio { background-color: #8e44ad; }
         #btn-audio.gravando-audio { background-color: #e74c3c; animation: pulsar 1.5s infinite; }
+        #btn-transcrever { background-color: #d35400; }
+        #btn-transcrever.ouvindo { background-color: #e67e22; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
@@ -199,6 +175,11 @@
         .btn-atalho:active {
             background-color: #2c3e50;
         }
+        
+        .textarea-container {
+            position: relative;
+            width: 100%;
+        }
         #textarea-ocorrencia {
             width: 100%;
             height: 80px;
@@ -211,6 +192,19 @@
             resize: none;
             margin-bottom: 10px;
         }
+        #btn-ditado-modal {
+            position: absolute;
+            right: 5px;
+            top: 5px;
+            background-color: #8e44ad;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            font-size: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -320,41 +314,16 @@
         }
         .audio-item {
             display: flex;
-            flex-direction: column;
-            gap: 4px;
-            margin-bottom: 8px;
-            background: #f1f2f6;
-            padding: 8px;
-            border-radius: 6px;
-        }
-        .audio-controls-row {
-            display: flex;
             align-items: center;
             justify-content: space-between;
-        }
-        .audio-item audio {
-            height: 28px;
-            width: 140px;
-        }
-        .btn-transcrever {
-            background-color: #2980b9;
-            color: white;
-            font-size: 10px;
-            padding: 5px 8px;
-            border-radius: 4px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .texto-transcrito {
-            font-size: 11px;
-            color: #2c3e50;
-            background: #fff;
+            margin-bottom: 5px;
+            background: #f1f2f6;
             padding: 5px;
             border-radius: 4px;
-            border: 1px solid #ddd;
-            display: none;
-            text-transform: uppercase;
+        }
+        .audio-item audio {
+            height: 30px;
+            width: 180px;
         }
 
         #map {
@@ -378,11 +347,11 @@
             
             <div id="btn-voz-container">
                 <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
-                <div id="sugestoes-destino"></div>
             </div>
 
             <button id="btn-gravar">🔴 GRAVAR</button>
             <button id="btn-audio">🎙️ ÁUDIO</button>
+            <button id="btn-transcrever">🗣️ FALA (TEXTO)</button>
             <button id="btn-marcar">⭐ MARCAR</button>
             <button id="btn-importar">📂 ABRIR</button>
             <button id="btn-limpar">🧹 LIMPAR</button>
@@ -404,7 +373,10 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
-            <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+            <div class="textarea-container">
+                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU FALE..."></textarea>
+                <button type="button" id="btn-ditado-modal" title="Falar no campo">🎙️ Falar</button>
+            </div>
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -436,7 +408,7 @@
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
         <div id="container-audios-salvos" class="lista-audios" style="display:none;">
-            <strong>ÁUDIOS GRAVADOS & TRANSCRIÇÕES:</strong>
+            <strong>ÁUDIOS GRAVADOS:</strong>
             <div id="lista-audios-elementos"></div>
         </div>
     </div>
@@ -471,11 +443,23 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
-        // Variáveis para gravação de áudio
+        // Variáveis para gravação de áudio padrão (MediaRecorder)
         let mediaRecorder = null;
         let audioChunks = [];
         let isGravandoAudio = false;
-        let audiosGravados = []; 
+        let audiosGravados = [];
+
+        // Variáveis para reconhecimento de fala / transcrição em texto
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition = null;
+        let isTranscrevendo = false;
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.continuous = false;
+            recognition.interimResults = false;
+        }
 
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
@@ -494,6 +478,7 @@
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
         const btnAudio = document.getElementById('btn-audio');
+        const btnTranscrever = document.getElementById('btn-transcrever');
         const btnMarcar = document.getElementById('btn-marcar');
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
@@ -507,11 +492,11 @@
         const listaAudiosElementos = document.getElementById('lista-audios-elementos');
         
         const inputDestino = document.getElementById('input-destino');
-        const sugestoesDestino = document.getElementById('sugestoes-destino');
 
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
+        const btnDitadoModal = document.getElementById('btn-ditado-modal');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
 
@@ -592,7 +577,63 @@
             }
         }
 
-        // --- GRAVAÇÃO DE ÁUDIO E TRANSCRIÇÃO ---
+        // --- BOTÃO DE TRANSCRIÇÃO DIRETA EM TEXTO ---
+        btnTranscrever.addEventListener('click', () => {
+            if (!recognition) {
+                alert("Seu navegador não suporta reconhecimento de voz.");
+                return;
+            }
+
+            if (!isTranscrevendo) {
+                recognition.start();
+            } else {
+                recognition.stop();
+            }
+        });
+
+        btnDitadoModal.addEventListener('click', () => {
+            if (!recognition) {
+                alert("Reconhecimento de voz indisponível.");
+                return;
+            }
+            recognition.start();
+        });
+
+        if (recognition) {
+            recognition.onstart = () => {
+                isTranscrevendo = true;
+                btnTranscrever.textContent = "🗣️ OUVINDO...";
+                btnTranscrever.classList.add('ouvindo');
+                btnDitadoModal.textContent = "🔴 Ouvindo...";
+                instructionsDiv.innerHTML = "🗣️ FALE AGORA PARA TRANSCREVER...";
+            };
+
+            recognition.onresult = (event) => {
+                const textoFalado = event.results[0][0].transcript.toUpperCase();
+                
+                // Se o modal de ocorrência estiver aberto, joga lá dentro. Senão, joga no campo de destino ou avisa.
+                if (modalMarcar.style.display === "flex") {
+                    inserirAtalho(textoFalado);
+                } else {
+                    inputDestino.value = textoFalado;
+                }
+                falarTexto("Texto capturado.");
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Erro no reconhecimento de voz:", event.error);
+            };
+
+            recognition.onend = () => {
+                isTranscrevendo = false;
+                btnTranscrever.textContent = "🗣️ FALA (TEXTO)";
+                btnTranscrever.classList.remove('ouvindo');
+                btnDitadoModal.textContent = "🎙️ Falar";
+                instructionsDiv.innerHTML = "✅ TRANSCRIÇÃO CONCLUÍDA!";
+            };
+        }
+
+        // --- GRAVAÇÃO DE ÁUDIO COMUM (ARQUIVO) ---
         btnAudio.addEventListener('click', async () => {
             if (!isGravandoAudio) {
                 try {
@@ -601,9 +642,7 @@
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
+                        if (event.data.size > 0) audioChunks.push(event.data);
                     };
 
                     mediaRecorder.onstop = () => {
@@ -611,20 +650,18 @@
                         const audioUrl = URL.createObjectURL(audioBlob);
                         const horaAudio = new Date().toLocaleTimeString('pt-BR');
                         
-                        audiosGravados.push({ hora: horaAudio, url: audioUrl, blob: audioBlob, texto: "" });
+                        audiosGravados.push({ hora: horaAudio, url: audioUrl, blob: audioBlob });
                         renderizarListaAudios();
-                        falarTexto("Áudio gravado.");
+                        falarTexto("Áudio salvo.");
                     };
 
                     mediaRecorder.start();
                     isGravandoAudio = true;
                     btnAudio.textContent = "⏹️ PARAR ÁUDIO";
                     btnAudio.classList.add('gravando-audio');
-                    instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO...";
-                    falarTexto("Gravando.");
+                    instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO EM ARQUIVO...";
                 } catch (err) {
                     alert("Erro ao acessar o microfone.");
-                    console.error(err);
                 }
             } else {
                 if (mediaRecorder && mediaRecorder.state !== "inactive") {
@@ -634,44 +671,9 @@
                 isGravandoAudio = false;
                 btnAudio.textContent = "🎙️ ÁUDIO";
                 btnAudio.classList.remove('gravando-audio');
-                instructionsDiv.innerHTML = "✅ ÁUDIO SALVO NO PAINEL!";
+                instructionsDiv.innerHTML = "✅ ÁUDIO ARMAZENADO NO PAINEL!";
             }
         });
-
-        function transcreverAudioAoVivo(index) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("O seu navegador não suporta a transcrição por voz direta.");
-                return;
-            }
-
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'pt-BR';
-            recognition.interimResults = false;
-            recognition.maxAlternatives = 1;
-
-            instructionsDiv.innerHTML = "🔤 OUVINDO PARA TRANSCREVER... (FALE AGORA)";
-            falarTexto("Ouvindo para transcrever.");
-
-            recognition.onresult = (event) => {
-                const textoTranscrito = event.results[0][0].transcript.toUpperCase();
-                audiosGravados[index].texto = textoTranscrito;
-                renderizarListaAudios();
-                
-                // Insere automaticamente no relatório formal ou append no histórico
-                textoRelatorioPronto += `\n• ÁUDIO TRANSCRITO (${audiosGravados[index].hora}): ${textoTranscrito}`;
-                atualizarPainelRelatorioDinamico();
-                instructionsDiv.innerHTML = "✅ TRANSCRIÇÃO CONCLUÍDA!";
-                falarTexto("Transcrito com sucesso.");
-            };
-
-            recognition.onerror = (event) => {
-                console.error(event.error);
-                instructionsDiv.innerHTML = "⚠️ ERRO NA TRANSCRIÇÃO.";
-            };
-
-            recognition.start();
-        }
 
         function renderizarListaAudios() {
             if (audiosGravados.length > 0) {
@@ -681,36 +683,16 @@
                     const div = document.createElement('div');
                     div.className = 'audio-item';
                     
-                    const row = document.createElement('div');
-                    row.className = 'audio-controls-row';
-
                     const label = document.createElement('span');
                     label.style.fontSize = "10px";
-                    label.style.fontWeight = "bold";
                     label.textContent = `#${index + 1} (${item.hora})`;
 
                     const audioElem = document.createElement('audio');
                     audioElem.controls = true;
                     audioElem.src = item.url;
 
-                    const btnTrans = document.createElement('button');
-                    btnTrans.className = 'btn-transcrever';
-                    btnTrans.textContent = "🔤 TRANSCREVER";
-                    btnTrans.onclick = () => transcreverAudioAoVivo(index);
-
-                    row.appendChild(label);
-                    row.appendChild(audioElem);
-                    row.appendChild(btnTrans);
-                    div.appendChild(row);
-
-                    const txtDiv = document.createElement('div');
-                    txtDiv.className = 'texto-transcrito';
-                    if (item.texto) {
-                        txtDiv.style.display = "block";
-                        txtDiv.textContent = `Transcrição: ${item.texto}`;
-                        div.appendChild(txtDiv);
-                    }
-
+                    div.appendChild(label);
+                    div.appendChild(audioElem);
                     listaAudiosElementos.appendChild(div);
                 });
                 painelRelatorio.style.display = "block";
@@ -718,7 +700,6 @@
                 containerAudiosSalvos.style.display = "none";
             }
         }
-        // ------------------------------------
 
         function emitirSomSalvamento() {
             try {
@@ -737,9 +718,7 @@
                 
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + 0.3);
-            } catch (e) {
-                console.log("Áudio bloqueado.", e);
-            }
+            } catch (e) {}
         }
 
         function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
@@ -768,9 +747,7 @@
                     }
                     if (callback) callback(nomeFormatado.toUpperCase());
                 })
-                .catch(err => {
-                    if (callback) callback("VIA NÃO IDENTIFICADA");
-                });
+                .catch(() => { if (callback) callback("VIA NÃO IDENTIFICADA"); });
         }
 
         function atualizarPainelRelatorioDinamico() {
@@ -779,27 +756,19 @@
             relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
 
             let contadorItem = 1;
-
             if (registrosTrajeto.length > 0) {
                 registrosTrajeto.forEach((ponto) => {
-                    const hora = ponto.hora || 'N/A';
-                    const rua = (ponto.rua || 'N/A').toUpperCase();
-                    relatorioFormal += `${contadorItem}. ÀS ${hora} - LOCAL: ${rua}.\n`;
+                    relatorioFormal += `${contadorItem}. ÀS ${ponto.hora} - LOCAL: ${ponto.rua.toUpperCase()}.\n`;
                     contadorItem++;
                 });
-            }
-
-            if (registrosTrajeto.length === 0) {
+            } else {
                 relatorioFormal += `1. NENHUM REGISTRO DE ROTA INFORMADO AINDA.\n`;
             }
 
             if (pontosDeMelhoria.length > 0) {
                 relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
                 pontosDeMelhoria.forEach((pm) => {
-                    const hora = pm.hora || 'N/A';
-                    const rua = (pm.rua || 'N/A').toUpperCase();
-                    const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                    relatorioFormal += `• ÀS ${hora} - ${comentario} EM ${rua};\n`;
+                    relatorioFormal += `• ÀS ${pm.hora} - ${pm.comentario} EM ${pm.rua.toUpperCase()};\n`;
                 });
             }
 
@@ -856,12 +825,7 @@
                     ultimaCoordenadaSalva = novaCoord;
                     ultimaRuaSalva = ruaAtualNome;
 
-                    registrosTrajeto.push({ 
-                        hora: horaAtual, 
-                        rua: ruaAtualNome, 
-                        coordenadas: novaCoord 
-                    });
-                    
+                    registrosTrajeto.push({ hora: horaAtual, rua: ruaAtualNome, coordenadas: novaCoord });
                     atualizarPainelRelatorioDinamico();
                     emitirSomSalvamento();
 
@@ -874,7 +838,6 @@
 
         function iniciarRastreamentoGlobal() {
             if (!navigator.geolocation) return;
-
             watchId = navigator.geolocation.watchPosition((position) => {
                 ultimaLat = position.coords.latitude;
                 ultimaLon = position.coords.longitude;
@@ -884,10 +847,8 @@
                 if (markerOrigem) map.removeLayer(markerOrigem);
                 markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
 
-                if (isGravando) {
-                    avaliarRegistroPorDistanciaOuEndereco();
-                }
-            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+                if (isGravando) avaliarRegistroPorDistanciaOuEndereco();
+            }, (err) => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
         }
 
         window.addEventListener('load', () => {
@@ -919,7 +880,6 @@
 
                 if (trackLayer) map.removeLayer(trackLayer);
                 instructionsDiv.innerHTML = "🧹 PRONTO PARA NOVO REGISTRO.";
-                falarTexto("Dados limpos.");
             }
         });
 
@@ -930,9 +890,7 @@
             textareaRelatorioModal.focus();
         });
 
-        btnModalRelatorioCancelar.addEventListener('click', function() {
-            modalGerarRelatorio.style.display = "none";
-        });
+        btnModalRelatorioCancelar.addEventListener('click', () => modalGerarRelatorio.style.display = "none");
 
         btnModalRelatorioSalvar.addEventListener('click', function() {
             textoRelatorioPronto = textareaRelatorioModal.value;
@@ -943,8 +901,7 @@
 
         btnWhatsapp.addEventListener('click', function() {
             if (!textoRelatorioPronto) return;
-            const urlWpp = `https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`;
-            window.open(urlWpp, '_blank');
+            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`, '_blank');
         });
 
         function formatarTempo(segundos) {
@@ -957,13 +914,10 @@
         btnGravar.addEventListener('click', async function() {
             if (!isGravando) {
                 if (!navigator.geolocation) { alert("GPS NÃO SUPORTADO."); return; }
-
                 isGravando = true;
                 segundosGravados = 0;
 
-                if (ultimaLat !== null && ultimaLon !== null) {
-                    avaliarRegistroPorDistanciaOuEndereco();
-                }
+                if (ultimaLat !== null && ultimaLon !== null) avaliarRegistroPorDistanciaOuEndereco();
 
                 btnGravar.classList.add('gravando');
                 solicitarWakeLock();
@@ -973,7 +927,6 @@
                     btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
                     atualizarPainelRelatorioDinamico();
                 }, 1000);
-
                 falarTexto("Gravação iniciada.");
             } else {
                 isGravando = false;
@@ -1017,13 +970,7 @@
                 const horaAtual = new Date().toLocaleTimeString('pt-BR');
                 const notaUpper = nota.toUpperCase();
 
-                pontosDeMelhoria.push({ 
-                    hora: horaAtual, 
-                    rua: ruaAtualPendente, 
-                    coordenadas: coordsAtuaisPendentes, 
-                    comentario: notaUpper 
-                });
-
+                pontosDeMelhoria.push({ hora: horaAtual, rua: ruaAtualPendente, coordenadas: coordsAtuaisPendentes, comentario: notaUpper });
                 atualizarPainelRelatorioDinamico();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
