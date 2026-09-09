@@ -320,16 +320,41 @@
         }
         .audio-item {
             display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 8px;
+            background: #f1f2f6;
+            padding: 8px;
+            border-radius: 6px;
+        }
+        .audio-controls-row {
+            display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 5px;
-            background: #f1f2f6;
-            padding: 5px;
-            border-radius: 4px;
         }
         .audio-item audio {
-            height: 30px;
-            width: 180px;
+            height: 28px;
+            width: 140px;
+        }
+        .btn-transcrever {
+            background-color: #2980b9;
+            color: white;
+            font-size: 10px;
+            padding: 5px 8px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .texto-transcrito {
+            font-size: 11px;
+            color: #2c3e50;
+            background: #fff;
+            padding: 5px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            display: none;
+            text-transform: uppercase;
         }
 
         #map {
@@ -411,7 +436,7 @@
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
         <div id="container-audios-salvos" class="lista-audios" style="display:none;">
-            <strong>ÁUDIOS GRAVADOS:</strong>
+            <strong>ÁUDIOS GRAVADOS & TRANSCRIÇÕES:</strong>
             <div id="lista-audios-elementos"></div>
         </div>
     </div>
@@ -450,7 +475,7 @@
         let mediaRecorder = null;
         let audioChunks = [];
         let isGravandoAudio = false;
-        let audiosGravados = []; // Guarda os blobs em base64 ou URLs locais temporárias
+        let audiosGravados = []; 
 
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
@@ -567,7 +592,7 @@
             }
         }
 
-        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO ---
+        // --- GRAVAÇÃO DE ÁUDIO E TRANSCRIÇÃO ---
         btnAudio.addEventListener('click', async () => {
             if (!isGravandoAudio) {
                 try {
@@ -586,9 +611,9 @@
                         const audioUrl = URL.createObjectURL(audioBlob);
                         const horaAudio = new Date().toLocaleTimeString('pt-BR');
                         
-                        audiosGravados.push({ hora: horaAudio, url: audioUrl, blob: audioBlob });
+                        audiosGravados.push({ hora: horaAudio, url: audioUrl, blob: audioBlob, texto: "" });
                         renderizarListaAudios();
-                        falarTexto("Áudio gravado com sucesso.");
+                        falarTexto("Áudio gravado.");
                     };
 
                     mediaRecorder.start();
@@ -596,15 +621,14 @@
                     btnAudio.textContent = "⏹️ PARAR ÁUDIO";
                     btnAudio.classList.add('gravando-audio');
                     instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO...";
-                    falarTexto("Gravando áudio.");
+                    falarTexto("Gravando.");
                 } catch (err) {
-                    alert("Erro ao acessar o microfone. Verifique as permissões.");
+                    alert("Erro ao acessar o microfone.");
                     console.error(err);
                 }
             } else {
                 if (mediaRecorder && mediaRecorder.state !== "inactive") {
                     mediaRecorder.stop();
-                    // Parar as pistas de áudio (liberar o microfone)
                     mediaRecorder.stream.getTracks().forEach(track => track.stop());
                 }
                 isGravandoAudio = false;
@@ -614,6 +638,41 @@
             }
         });
 
+        function transcreverAudioAoVivo(index) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("O seu navegador não suporta a transcrição por voz direta.");
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'pt-BR';
+            recognition.interimResults = false;
+            recognition.maxAlternatives = 1;
+
+            instructionsDiv.innerHTML = "🔤 OUVINDO PARA TRANSCREVER... (FALE AGORA)";
+            falarTexto("Ouvindo para transcrever.");
+
+            recognition.onresult = (event) => {
+                const textoTranscrito = event.results[0][0].transcript.toUpperCase();
+                audiosGravados[index].texto = textoTranscrito;
+                renderizarListaAudios();
+                
+                // Insere automaticamente no relatório formal ou append no histórico
+                textoRelatorioPronto += `\n• ÁUDIO TRANSCRITO (${audiosGravados[index].hora}): ${textoTranscrito}`;
+                atualizarPainelRelatorioDinamico();
+                instructionsDiv.innerHTML = "✅ TRANSCRIÇÃO CONCLUÍDA!";
+                falarTexto("Transcrito com sucesso.");
+            };
+
+            recognition.onerror = (event) => {
+                console.error(event.error);
+                instructionsDiv.innerHTML = "⚠️ ERRO NA TRANSCRIÇÃO.";
+            };
+
+            recognition.start();
+        }
+
         function renderizarListaAudios() {
             if (audiosGravados.length > 0) {
                 containerAudiosSalvos.style.display = "block";
@@ -622,16 +681,36 @@
                     const div = document.createElement('div');
                     div.className = 'audio-item';
                     
+                    const row = document.createElement('div');
+                    row.className = 'audio-controls-row';
+
                     const label = document.createElement('span');
                     label.style.fontSize = "10px";
+                    label.style.fontWeight = "bold";
                     label.textContent = `#${index + 1} (${item.hora})`;
 
                     const audioElem = document.createElement('audio');
                     audioElem.controls = true;
                     audioElem.src = item.url;
 
-                    div.appendChild(label);
-                    div.appendChild(audioElem);
+                    const btnTrans = document.createElement('button');
+                    btnTrans.className = 'btn-transcrever';
+                    btnTrans.textContent = "🔤 TRANSCREVER";
+                    btnTrans.onclick = () => transcreverAudioAoVivo(index);
+
+                    row.appendChild(label);
+                    row.appendChild(audioElem);
+                    row.appendChild(btnTrans);
+                    div.appendChild(row);
+
+                    const txtDiv = document.createElement('div');
+                    txtDiv.className = 'texto-transcrito';
+                    if (item.texto) {
+                        txtDiv.style.display = "block";
+                        txtDiv.textContent = `Transcrição: ${item.texto}`;
+                        div.appendChild(txtDiv);
+                    }
+
                     listaAudiosElementos.appendChild(div);
                 });
                 painelRelatorio.style.display = "block";
