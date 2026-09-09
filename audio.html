@@ -199,6 +199,11 @@
         .btn-atalho:active {
             background-color: #2c3e50;
         }
+        
+        .textarea-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
         #textarea-ocorrencia {
             width: 100%;
             height: 80px;
@@ -206,11 +211,33 @@
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
+            padding-right: 35px; /* Espaço para o botão de microfone interno */
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
-            margin-bottom: 10px;
         }
+        #btn-falar-modal {
+            position: absolute;
+            bottom: 8px;
+            right: 6px;
+            background-color: #8e44ad;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 28px;
+            height: 28px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            padding: 0;
+        }
+        #btn-falar-modal.ouvindo {
+            background-color: #e74c3c;
+            animation: pulsar 1.5s infinite;
+        }
+
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -379,7 +406,10 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
-            <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+            <div class="textarea-container">
+                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+                <button type="button" id="btn-falar-modal" title="Ditar ocorrência por voz">🎙️</button>
+            </div>
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -446,11 +476,11 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
-        // Variáveis para gravação de áudio
+        // Variáveis para gravação de áudio geral
         let mediaRecorder = null;
         let audioChunks = [];
         let isGravandoAudio = false;
-        let audiosGravados = []; // Guarda os blobs em base64 ou URLs locais temporárias
+        let audiosGravados = [];
 
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
@@ -487,6 +517,7 @@
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
+        const btnFalarModal = document.getElementById('btn-falar-modal');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
 
@@ -504,6 +535,50 @@
             }
             textareaOcorrencia.focus();
         }
+
+        // --- RECONHECIMENTO DE VOZ PARA O MODAL DE MARCAÇÃO ---
+        let recognitionModal = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognitionModal = new SpeechRecognition();
+            recognitionModal.lang = 'pt-BR';
+            recognitionModal.continuous = false;
+            recognitionModal.interimResults = false;
+
+            recognitionModal.onresult = (event) => {
+                const textoDitado = event.results[0][0].transcript.toUpperCase();
+                inserirAtalho(textoDitado);
+                btnFalarModal.classList.remove('ouvindo');
+            };
+
+            recognitionModal.onerror = () => {
+                btnFalarModal.classList.remove('ouvindo');
+            };
+
+            recognitionModal.onend = () => {
+                btnFalarModal.classList.remove('ouvindo');
+            };
+        }
+
+        btnFalarModal.addEventListener('click', () => {
+            if (!recognitionModal) {
+                alert("Seu navegador não suporta reconhecimento de voz.");
+                return;
+            }
+            if (btnFalarModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+                btnFalarModal.classList.remove('ouvindo');
+            } else {
+                try {
+                    recognitionModal.start();
+                    btnFalarModal.classList.add('ouvindo');
+                } catch (e) {
+                    recognitionModal.stop();
+                    btnFalarModal.classList.remove('ouvindo');
+                }
+            }
+        });
+        // -----------------------------------------------------
 
         const dadosSetoresKML = [
             {
@@ -567,7 +642,7 @@
             }
         }
 
-        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO ---
+        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO GERAL ---
         btnAudio.addEventListener('click', async () => {
             if (!isGravandoAudio) {
                 try {
@@ -604,7 +679,6 @@
             } else {
                 if (mediaRecorder && mediaRecorder.state !== "inactive") {
                     mediaRecorder.stop();
-                    // Parar as pistas de áudio (liberar o microfone)
                     mediaRecorder.stream.getTracks().forEach(track => track.stop());
                 }
                 isGravandoAudio = false;
