@@ -211,7 +211,7 @@
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
-            padding-right: 35px;
+            padding-right: 35px; /* Espaço para o botão de microfone */
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
@@ -478,6 +478,7 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
+        // Variáveis para gravação de áudio geral
         let mediaRecorder = null;
         let audioChunks = [];
         let isGravandoAudio = false;
@@ -555,7 +556,6 @@
 
             recognition.onerror = (event) => {
                 console.error("Erro no reconhecimento de voz:", event.error);
-                alert("Erro no reconhecimento de voz: " + event.error);
                 btnVozModal.classList.remove('ouvindo');
                 btnVozModal.textContent = "🎙️";
             };
@@ -583,7 +583,6 @@
                 }
             } catch (e) {
                 console.error(e);
-                alert("Erro ao iniciar microfone: " + e.message);
             }
         });
         // --------------------------------------------------
@@ -650,6 +649,7 @@
             }
         }
 
+        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO GERAL ---
         btnAudio.addEventListener('click', async () => {
             if (!isGravandoAudio) {
                 try {
@@ -720,6 +720,7 @@
                 containerAudiosSalvos.style.display = "none";
             }
         }
+        // ------------------------------------------
 
         function emitirSomSalvamento() {
             try {
