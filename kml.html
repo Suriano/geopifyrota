@@ -1,3 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Setores - Leaflet & GitHub</title>
+
+    <!-- 1. Importa o CSS do Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <style>
+        /* Garante que o mapa ocupe a tela inteira */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Elemento onde o mapa será renderizado -->
+    <div id="map"></div>
+
+    <!-- 2. Importa o JS do Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Inicializa o mapa centralizado provisoriamente em São Paulo
+        var map = L.map('map').setView([-23.5505, -46.6333], 13);
+
+        // Adiciona a camada de mapa base (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Função de estilo para os polígonos/setores
+        function styleFeature(feature) {
+            return {
+                color: '#3388ff',       // Cor da linha de contorno
+                weight: 2,              // Espessura da linha
+                fillColor: '#3388ff',   // Cor do preenchimento
+                fillOpacity: 0.3        // Transparência do preenchimento
+            };
+        }
+
+        // Função executada para cada feição (polígono/ponto) para criar popups
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                // Tenta pegar o nome ou título vindo do KML original convertido
+                let nome = feature.properties.name || feature.properties.Name || 'Setor sem nome';
+                let descricao = feature.properties.description || feature.properties.Description || '';
+
+                let conteudoPopup = `<b>${nome}</b>`;
+                if (descricao) {
+                    conteudoPopup += `<br>${descricao}`;
+                }
+                layer.bindPopup(conteudoPopup);
+            }
+        }
+
+        // 3. URL "Raw" do arquivo GeoJSON hospedado no GitHub
+        // ALERTA: Substitua os dados abaixo pelo seu usuário, repositório e nome do arquivo exato
+        var urlGeoJson = 'https://raw.githubusercontent.com/seu-usuario/seu-repositorio/main/setores.geojson';
+
+        // 4. Carrega o GeoJSON do GitHub de forma assíncrona
+        fetch(urlGeoJson)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Erro ao baixar o arquivo GeoJSON: ' + response.statusText);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Cria a camada Leaflet com os dados GeoJSON
+                var setoresLayer = L.geoJSON(data, {
+                    style: styleFeature,
+                    onEachFeature: onEachFeature
+                }).addTo(map);
+
+                // Ajusta o zoom e a posição do mapa automaticamente para enquadrar todos os setores carregados
+                map.fitBounds(setoresLayer.getBounds());
+            })
+            .catch(error => {
+                console.error('Erro ao carregar o GeoJSON do GitHub:', error);
+                alert('Não foi possível carregar os setores do mapa. Verifique o console para mais detalhes.');
+            });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html>
 <head>
