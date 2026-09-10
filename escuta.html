@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Rádio - Alerta de Termos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            transition: background-color 0.5s;
+        }
+        .container {
+            text-align: center;
+            background: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 600px;
+            width: 100%;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 6px;
+            margin: 10px;
+            transition: 0.3s;
+        }
+        #btnStart { background-color: #28a745; color: white; }
+        #btnStart:hover { background-color: #218838; }
+        #btnStop { background-color: #dc3545; color: white; }
+        #btnStop:hover { background-color: #c82333; }
+        
+        #status {
+            font-size: 18px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .status-parado { color: #ffc107; }
+        .status-escutando { color: #28a745; text-shadow: 0 0 8px rgba(40,167,69,0.6); }
+
+        #translog {
+            margin-top: 20px;
+            background: #111;
+            border: 1px solid #333;
+            height: 150px;
+            border-radius: 6px;
+            overflow-y: auto;
+            padding: 10px;
+            text-align: left;
+            font-family: monospace;
+            font-size: 14px;
+            color: #00ffcc;
+        }
+        .highlight {
+            color: #ff3333;
+            font-weight: bold;
+        }
+        /* Efeito de Alerta Visual na Tela */
+        body.alerta-ativo {
+            background-color: #550000 !important;
+            animation: piscar 0.5s infinite alternate;
+        }
+        @keyframes piscar {
+            from { background-color: #550000; }
+            to { background-color: #990000; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Monitoramento de Rádio</h2>
+    <p>Termos buscados: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
+    
+    <div id="status" class="status-parado">Status: Parado</div>
+    
+    <div>
+        <button id="btnStart" onclick="iniciarEscuta()">Iniciar Escuta</button>
+        <button id="btnStop" onclick="pararEscuta()">Parar</button>
+        <button id="btnPararAlerta" onclick="pararAlerta()" style="background-color: #ffc107; color: #000; display:none;">Parar Alerta Sonoro</button>
+    </div>
+
+    <h3>Transcrição em Tempo Real:</h3>
+    <div id="translog">Aguardando início...</div>
+</div>
+
+<script>
+    let recognition;
+    let isListening = false;
+    let audioCtx = null;
+    let sirenInterval = null;
+    let restartTimeout = null;
+
+    // Normalizador de texto para lidar com variações da fala (ex: "primeira cia", "cgp onze", etc.)
+    function normalizarTexto(texto) {
+        return texto.toLowerCase()
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/primeira/g, "1a")
+            .replace(/1ª/g, "1a")
+            .replace(/onze/g, "11")
+            .replace(/um/g, "1");
+    }
+
+    function configurarReconhecimento() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("Seu navegador não suporta reconhecimento de voz. Use o Google Chrome.");
+            return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onresult = function(event) {
+            let transcriptInterim = '';
+            let transcriptFinal = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    transcriptFinal += event.results[i][0].transcript;
+                } else {
+                    transcriptInterim += event.results[i][0].transcript;
+                }
+            }
+
+            let textoCompleto = transcriptFinal + transcriptInterim;
+            if (textoCompleto.trim() !== "") {
+                adicionarLog(textoCompleto);
+                verificarTermos(textoCompleto);
+            }
+        };
+
+        recognition.onerror = function(event) {
+            console.warn("Erro no reconhecimento: ", event.error);
+            if (event.error === 'not-allowed') {
+                alert("Permissão do microfone negada. Autorize o uso do microfone.");
+                pararEscuta();
+            }
+        };
+
+        recognition.onend = function() {
+            // O Reconhecimento do Chrome costuma desligar sozinho após alguns segundos de silêncio.
+            // Este bloco reinicia automaticamente para manter a escuta contínua.
+            if (isListening) {
+                restartTimeout = setTimeout(() => {
+                    try { recognition.start(); } catch(e) {}
+                }, 500);
+            }
+        };
+    }
+
+    function iniciarEscuta() {
+        if (isListening) return;
+        
+        configurarReconhecimento();
+        try {
+            recognition.start();
+            isListening = true;
+            document.getElementById("status").innerText = "Status: Escutando a rede...";
+            document.getElementById("status").className = "status-escutando";
+            adicionarLog("[Sistema iniciado]");
+        } catch (e) {
+            console.log(e);
+        }
+    }
+
+    function pararEscuta() {
+        isListening = false;
+        clearTimeout(restartTimeout);
+        if (recognition) {
+            recognition.stop();
+        }
+        document.getElementById("status").innerText = "Status: Parado";
+        document.getElementById("status").className = "status-parado";
+        adicionarLog("[Sistema parado pelo usuário]");
+    }
+
+    function verificarTermos(textoBruto) {
+        let texto = normalizarTexto(textoBruto);
+        
+        // Critérios de busca (ajustados para pegar variações comuns)
+        // Buscamos por "1a cia", "cgp 11", "cgp 1" (isolado ou seguido de palavra)
+        const regex = /(1a\s*cia|cgp\s*11|cgp\s*1\b)/i;
+
+        if (regex.test(texto)) {
+            dispararAlertaVisualESonoro();
+            destacarLogUltimaFrase(textoBruto);
+        }
+    }
+
+    // --- SISTEMA DE GERAÇÃO DE SIRENE VIA WEB AUDIO API ---
+    function tocarSirene() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        // Cria efeito de oscilação de frequência (tipo viatura policial/bombeiro americana)
+        let osc = audioCtx.createOscillator();
+        let gainNode = audioCtx.createGain();
+
+        osc.type = 'sine';
+        
+        let now = audioCtx.currentTime;
+        // Sobe de 500Hz para 900Hz e desce em ciclos de 1.4 segundos
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.linearRampToValueAtTime(900, now + 0.7);
+        osc.frequency.linearRampToValueAtTime(500, now + 1.4);
+
+        gainNode.gain.setValueAtTime(0.3, now); // Volume moderado/alto
+
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 1.4);
+    }
+
+    function dispararAlertaVisualESonoro() {
+        // Ativa piscar da tela
+        document.body.classList.add("alerta-ativo");
+        document.getElementById("btnPararAlerta").style.display = "inline-block";
+
+        // Toca o som imediatamente e repete a cada 1.5 segundos se já não estiver tocando
+        if (!sirenInterval) {
+            tocarSirene();
+            sirenInterval = setInterval(tocarSirene, 1500);
+        }
+    }
+
+    function pararAlerta() {
+        document.body.classList.remove("alerta-ativo");
+        document.getElementById("btnPararAlerta").style.display = "none";
+        if (sirenInterval) {
+            clearInterval(sirenInterval);
+            sirenInterval = null;
+        }
+    }
+
+    function adicionarLog(texto) {
+        const logDiv = document.getElementById("translog");
+        const horario = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `[${horario}] ${texto}<br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function destacarLogUltimaFrase(textoBruto) {
+        const logDiv = document.getElementById("translog");
+        const horario = new Date().toLocaleTimeString();
+        logDiv.innerHTML += `<span class="highlight">[${horario}] ALERTA DETECTADO: "${textoBruto}"</span><br>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+</script>
+
+</body>
+</html>
