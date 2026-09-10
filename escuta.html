@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Rádio - Alerta de Termos</title>
+    <title>Monitor de Rádio - Alta Sensibilidade</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -23,7 +23,7 @@
             padding: 30px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            max-width: 600px;
+            max-width: 650px;
             width: 100%;
         }
         button {
@@ -53,7 +53,7 @@
             margin-top: 20px;
             background: #111;
             border: 1px solid #333;
-            height: 150px;
+            height: 160px;
             border-radius: 6px;
             overflow-y: auto;
             padding: 10px;
@@ -66,7 +66,6 @@
             color: #ff3333;
             font-weight: bold;
         }
-        /* Efeito de Alerta Visual na Tela */
         body.alerta-ativo {
             background-color: #550000 !important;
             animation: piscar 0.5s infinite alternate;
@@ -80,8 +79,8 @@
 <body>
 
 <div class="container">
-    <h2>Monitoramento de Rádio</h2>
-    <p>Termos buscados: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
+    <h2>Monitor de Rádio (Modo Ampliado)</h2>
+    <p>Buscando por: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
     
     <div id="status" class="status-parado">Status: Parado</div>
     
@@ -102,14 +101,27 @@
     let sirenInterval = null;
     let restartTimeout = null;
 
-    // Normalizador de texto para lidar com variações da fala (ex: "primeira cia", "cgp onze", etc.)
+    // Normalizador extremamente agressivo para pegar erros comuns de tradução de voz
     function normalizarTexto(texto) {
         return texto.toLowerCase()
             .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[^a-z0-9\s]/g, " ") // Remove pontuações estranhas
+            // Correções para "1ª Cia" / "Primeira Cia"
             .replace(/primeira/g, "1a")
-            .replace(/1ª/g, "1a")
+            .replace(/1 a/g, "1a")
+            .replace(/uma cia/g, "1a cia")
+            .replace(/cia/g, " cia ")
+            // Correções para "CGP 11"
+            .replace(/c g p/g, "cgp")
+            .replace(/c\.g\.p/g, "cgp")
             .replace(/onze/g, "11")
-            .replace(/um/g, "1");
+            .replace(/um um/g, "11")
+            .replace(/duas unidade/g, "11")
+            // Correções para "CGP 1"
+            .replace(/cgp um/g, "cgp 1")
+            .replace(/cgp primeiro/g, "cgp 1")
+            .replace(/\s+/g, " ") // Padroniza espaços
+            .trim();
     }
 
     function configurarReconhecimento() {
@@ -145,19 +157,13 @@
 
         recognition.onerror = function(event) {
             console.warn("Erro no reconhecimento: ", event.error);
-            if (event.error === 'not-allowed') {
-                alert("Permissão do microfone negada. Autorize o uso do microfone.");
-                pararEscuta();
-            }
         };
 
         recognition.onend = function() {
-            // O Reconhecimento do Chrome costuma desligar sozinho após alguns segundos de silêncio.
-            // Este bloco reinicia automaticamente para manter a escuta contínua.
             if (isListening) {
                 restartTimeout = setTimeout(() => {
                     try { recognition.start(); } catch(e) {}
-                }, 500);
+                }, 300);
             }
         };
     }
@@ -191,17 +197,17 @@
     function verificarTermos(textoBruto) {
         let texto = normalizarTexto(textoBruto);
         
-        // Critérios de busca (ajustados para pegar variações comuns)
-        // Buscamos por "1a cia", "cgp 11", "cgp 1" (isolado ou seguido de palavra)
-        const regex = /(1a\s*cia|cgp\s*11|cgp\s*1\b)/i;
+        // Expressões regulares flexíveis (capturam variações de espaçamento e grafia)
+        const regex1aCia = /1a\s*cia|primeira\s*companhia|1\s*companhia/i;
+        const regexCgp11 = /cgp\s*11|cgp\s*onze|cgp\s*um\s*um/i;
+        const regexCgp1  = /cgp\s*1\b|cgp\s*um\b|cgp\s*primeiro\b/i;
 
-        if (regex.test(texto)) {
+        if (regex1aCia.test(texto) || regexCgp11.test(texto) || regexCgp1.test(texto)) {
             dispararAlertaVisualESonoro();
             destacarLogUltimaFrase(textoBruto);
         }
     }
 
-    // --- SISTEMA DE GERAÇÃO DE SIRENE VIA WEB AUDIO API ---
     function tocarSirene() {
         if (!audioCtx) {
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -210,19 +216,17 @@
             audioCtx.resume();
         }
 
-        // Cria efeito de oscilação de frequência (tipo viatura policial/bombeiro americana)
         let osc = audioCtx.createOscillator();
         let gainNode = audioCtx.createGain();
 
         osc.type = 'sine';
-        
         let now = audioCtx.currentTime;
-        // Sobe de 500Hz para 900Hz e desce em ciclos de 1.4 segundos
+        
         osc.frequency.setValueAtTime(500, now);
         osc.frequency.linearRampToValueAtTime(900, now + 0.7);
         osc.frequency.linearRampToValueAtTime(500, now + 1.4);
 
-        gainNode.gain.setValueAtTime(0.3, now); // Volume moderado/alto
+        gainNode.gain.setValueAtTime(0.3, now);
 
         osc.connect(gainNode);
         gainNode.connect(audioCtx.destination);
@@ -232,11 +236,9 @@
     }
 
     function dispararAlertaVisualESonoro() {
-        // Ativa piscar da tela
         document.body.classList.add("alerta-ativo");
         document.getElementById("btnPararAlerta").style.display = "inline-block";
 
-        // Toca o som imediatamente e repete a cada 1.5 segundos se já não estiver tocando
         if (!sirenInterval) {
             tocarSirene();
             sirenInterval = setInterval(tocarSirene, 1500);
