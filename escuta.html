@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Rádio - Direto</title>
+    <title>Monitor de Rádio - Mobile</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,53 +13,54 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 15px;
+            box-sizing: border-box;
             transition: background-color 0.5s;
         }
         .container {
             text-align: center;
             background: #1e1e1e;
-            padding: 30px;
+            padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            max-width: 650px;
+            max-width: 100%;
             width: 100%;
         }
         button {
-            padding: 12px 24px;
+            padding: 14px 20px;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
             border: none;
             border-radius: 6px;
-            margin: 10px;
-            transition: 0.3s;
+            margin: 8px 4px;
+            width: 100%;
+            max-width: 250px;
         }
         #btnStart { background-color: #28a745; color: white; }
-        #btnStart:hover { background-color: #218838; }
         #btnStop { background-color: #dc3545; color: white; }
-        #btnStop:hover { background-color: #c82333; }
         
         #status {
-            font-size: 18px;
+            font-size: 16px;
             margin: 15px 0;
             font-weight: bold;
         }
         .status-parado { color: #ffc107; }
-        .status-escutando { color: #28a745; text-shadow: 0 0 8px rgba(40,167,69,0.8); }
+        .status-escutando { color: #28a745; }
 
         #translog {
-            margin-top: 20px;
+            margin-top: 15px;
             background: #111;
             border: 1px solid #333;
-            height: 160px;
+            height: 180px;
             border-radius: 6px;
             overflow-y: auto;
             padding: 10px;
             text-align: left;
             font-family: monospace;
-            font-size: 14px;
+            font-size: 13px;
             color: #00ffcc;
         }
         .highlight {
@@ -79,8 +80,8 @@
 <body>
 
 <div class="container">
-    <h2>Monitor de Rádio (Modo Direto)</h2>
-    <p>Buscando por: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
+    <h2>Monitor de Rádio (Celular)</h2>
+    <p style="font-size: 13px; color: #aaa;">Termos: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
     
     <div id="status" class="status-parado">Status: Parado</div>
     
@@ -90,8 +91,8 @@
         <button id="btnPararAlerta" onclick="pararAlerta()" style="background-color: #ffc107; color: #000; display:none;">Parar Alerta Sonoro</button>
     </div>
 
-    <h3>Transcrição em Tempo Real:</h3>
-    <div id="translog">Aguardando início...</div>
+    <h3>Registro de Voz:</h3>
+    <div id="translog">Toque em "Iniciar Escuta" e mantenha a tela ligada...</div>
 </div>
 
 <script>
@@ -123,7 +124,7 @@
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Seu navegador não suporta reconhecimento de voz. Use o Google Chrome.");
+            alert("Seu navegador não suporta reconhecimento de voz. Use o Google Chrome no Android.");
             return;
         }
 
@@ -136,7 +137,7 @@
             isListening = true;
             document.getElementById("status").innerText = "Status: Ouvindo ativamente...";
             document.getElementById("status").className = "status-escutando";
-            adicionarLog("[Microfone aberto e ouvindo]");
+            adicionarLog("[Microfone ativado no celular]");
         };
 
         recognition.onresult = function(event) {
@@ -146,22 +147,21 @@
             }
 
             if (textoCompleto.trim() !== "") {
-                adicionarLog("Transcrito: " + textoCompleto);
+                adicionarLog("Ouvido: " + textoCompleto);
                 verificarTermos(textoCompleto);
             }
         };
 
         recognition.onerror = function(event) {
-            adicionarLog("[Aviso/Erro do microfone: " + event.error + "]");
+            adicionarLog("[Aviso: " + event.error + "]");
         };
 
         recognition.onend = function() {
-            // Reinicia automaticamente caso o Google feche a sessão por silêncio
             if (isListening) {
                 try {
                     recognition.start();
                 } catch (e) {
-                    console.log("Reiniciando reconhecimento...");
+                    console.log("Reiniciando...");
                 }
             }
         };
@@ -169,7 +169,8 @@
         try {
             recognition.start();
         } catch (e) {
-            console.error(e);
+            alert("Erro ao iniciar microfone. Verifique se permitiu o uso.");
+            isListening = false;
         }
     }
 
@@ -180,7 +181,7 @@
         }
         document.getElementById("status").innerText = "Status: Parado";
         document.getElementById("status").className = "status-parado";
-        adicionarLog("[Sistema parado pelo usuário]");
+        adicionarLog("[Parado]");
     }
 
     function verificarTermos(textoBruto) {
@@ -234,7 +235,6 @@
     }
 
     function pararAlerta() {
-        document.body.classList.0 = "";
         document.body.classList.remove("alerta-ativo");
         document.getElementById("btnPararAlerta").style.display = "none";
         if (sirenInterval) {
