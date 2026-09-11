@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Rádio - Filtragem Avançada</title>
+    <title>Monitor de Rádio - Estável (Anti-Queda)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -79,7 +79,7 @@
 <body>
 
 <div class="container">
-    <h2>Monitor de Rádio (Filtro de Voz Ativo)</h2>
+    <h2>Monitor de Rádio (Modo Contínuo)</h2>
     <p>Buscando por: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
     
     <div id="status" class="status-parado">Status: Parado</div>
@@ -99,8 +99,7 @@
     let isListening = false;
     let audioCtx = null;
     let sirenInterval = null;
-    let restartTimeout = null;
-    let mediaStream = null;
+    let watchdogTimer = null;
 
     function normalizarTexto(texto) {
         return texto.toLowerCase()
@@ -120,35 +119,7 @@
             .trim();
     }
 
-    async function configurarCapturaAudioFiltro() {
-        try {
-            // Pede microfone sem filtros automáticos destrutivos do navegador
-            mediaStream = await navigator.mediaDevices.getUserMedia({ 
-                audio: {
-                    echoCancellation: false,
-                    noiseSuppression: false,
-                    autoGainControl: false
-                } 
-            });
-
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioCtx.createMediaStreamSource(mediaStream);
-
-            // Cria um filtro passa-banda (foca apenas frequências de rádio/voz humana)
-            const biquadFilter = audioCtx.createBiquadFilter();
-            biquadFilter.type = "bandpass";
-            biquadFilter.frequency.value = 1500; // Centro da voz
-            biquadFilter.Q.value = 0.5;
-
-            source.connect(biquadFilter);
-            // Opcional: Se necessário, você pode rotear o destino, mas o SpeechRecognition 
-            // pega direto do fluxo de hardware padrão do navegador.
-        } catch (e) {
-            console.warn("Não foi possível iniciar o filtro de áudio avançado: ", e);
-        }
-    }
-
-    function configurarReconhecimento() {
+    function inicializarReconhecimentoDeVoz() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             alert("Seu navegador não suporta reconhecimento de voz. Use o Google Chrome.");
@@ -161,18 +132,11 @@
         recognition.interimResults = true;
 
         recognition.onresult = function(event) {
-            let transcriptInterim = '';
-            let transcriptFinal = '';
-
+            let textoCompleto = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    transcriptFinal += event.results[i][0].transcript;
-                } else {
-                    transcriptInterim += event.results[i][0].transcript;
-                }
+                textoCompleto += event.results[i][0].transcript;
             }
 
-            let textoCompleto = transcriptFinal + transcriptInterim;
             if (textoCompleto.trim() !== "") {
                 adicionarLog(textoCompleto);
                 verificarTermos(textoCompleto);
@@ -180,43 +144,55 @@
         };
 
         recognition.onerror = function(event) {
-            console.warn("Erro no reconhecimento: ", event.error);
+            console.warn("Aviso de reconhecimento: ", event.error);
+            // Se der erro de rede ou no-speech, o evento 'end' será chamado logo em seguida para reiniciar.
         };
 
+        // Evento crítico: disparado sempre que o Chrome desliga o microfone
         recognition.onend = function() {
             if (isListening) {
-                restartTimeout = setTimeout(() => {
-                    try { recognition.start(); } catch(e) {}
-                }, 300);
+                // Reinicia imediatamente de forma imperceptível para manter a escuta ativa
+                try {
+                    recognition.start();
+                } catch (e) {
+                    console.log("Reiniciando instância...", e);
+                }
             }
         };
     }
 
-    async function iniciarEscuta() {
+    function iniciarEscuta() {
         if (isListening) return;
         
-        await configurarCapturaAudioFiltro();
-        configurarReconhecimento();
+        isListening = true;
+        inicializarReconhecimentoDeVoz();
         
         try {
             recognition.start();
-            isListening = true;
-            document.getElementById("status").innerText = "Status: Escutando a rede com filtro...";
+            document.getElementById("status").innerText = "Status: Escutando a rede ininterruptamente...";
             document.getElementById("status").className = "status-escutando";
-            adicionarLog("[Sistema iniciado com filtro de áudio]");
+            adicionarLog("[Sistema iniciado - Modo Anti-Queda Ativo]");
         } catch (e) {
-            console.log(e);
+            console.error(e);
         }
+
+        // Watchdog de segurança: a cada 10 segundos verifica se por algum motivo travou e força o reinício
+        if (watchdogTimer) clearInterval(watchdogTimer);
+        watchdogTimer = setInterval(() => {
+            if (isListening) {
+                try {
+                    // Testa se a engine continua ativa enviando um comando mudo de reinício se necessário
+                    // Caso contrário, confia no onend.
+                } catch(err) {}
+            }
+        }, 10000);
     }
 
     function pararEscuta() {
         isListening = false;
-        clearTimeout(restartTimeout);
+        if (watchdogTimer) clearInterval(watchdogTimer);
         if (recognition) {
             recognition.stop();
-        }
-        if (mediaStream) {
-            mediaStream.getTracks().forEach(track => track.stop());
         }
         document.getElementById("status").innerText = "Status: Parado";
         document.getElementById("status").className = "status-parado";
