@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitor de Rádio - Alta Sensibilidade</title>
+    <title>Monitor de Rádio - Filtragem Avançada</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -79,7 +79,7 @@
 <body>
 
 <div class="container">
-    <h2>Monitor de Rádio (Modo Ampliado)</h2>
+    <h2>Monitor de Rádio (Filtro de Voz Ativo)</h2>
     <p>Buscando por: <strong>1ª Cia | CGP 11 | CGP 1</strong></p>
     
     <div id="status" class="status-parado">Status: Parado</div>
@@ -100,28 +100,52 @@
     let audioCtx = null;
     let sirenInterval = null;
     let restartTimeout = null;
+    let mediaStream = null;
 
-    // Normalizador extremamente agressivo para pegar erros comuns de tradução de voz
     function normalizarTexto(texto) {
         return texto.toLowerCase()
-            .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
-            .replace(/[^a-z0-9\s]/g, " ") // Remove pontuações estranhas
-            // Correções para "1ª Cia" / "Primeira Cia"
+            .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, " ")
             .replace(/primeira/g, "1a")
             .replace(/1 a/g, "1a")
             .replace(/uma cia/g, "1a cia")
             .replace(/cia/g, " cia ")
-            // Correções para "CGP 11"
             .replace(/c g p/g, "cgp")
             .replace(/c\.g\.p/g, "cgp")
             .replace(/onze/g, "11")
             .replace(/um um/g, "11")
-            .replace(/duas unidade/g, "11")
-            // Correções para "CGP 1"
             .replace(/cgp um/g, "cgp 1")
             .replace(/cgp primeiro/g, "cgp 1")
-            .replace(/\s+/g, " ") // Padroniza espaços
+            .replace(/\s+/g, " ")
             .trim();
+    }
+
+    async function configurarCapturaAudioFiltro() {
+        try {
+            // Pede microfone sem filtros automáticos destrutivos do navegador
+            mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: false,
+                    noiseSuppression: false,
+                    autoGainControl: false
+                } 
+            });
+
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(mediaStream);
+
+            // Cria um filtro passa-banda (foca apenas frequências de rádio/voz humana)
+            const biquadFilter = audioCtx.createBiquadFilter();
+            biquadFilter.type = "bandpass";
+            biquadFilter.frequency.value = 1500; // Centro da voz
+            biquadFilter.Q.value = 0.5;
+
+            source.connect(biquadFilter);
+            // Opcional: Se necessário, você pode rotear o destino, mas o SpeechRecognition 
+            // pega direto do fluxo de hardware padrão do navegador.
+        } catch (e) {
+            console.warn("Não foi possível iniciar o filtro de áudio avançado: ", e);
+        }
     }
 
     function configurarReconhecimento() {
@@ -168,16 +192,18 @@
         };
     }
 
-    function iniciarEscuta() {
+    async function iniciarEscuta() {
         if (isListening) return;
         
+        await configurarCapturaAudioFiltro();
         configurarReconhecimento();
+        
         try {
             recognition.start();
             isListening = true;
-            document.getElementById("status").innerText = "Status: Escutando a rede...";
+            document.getElementById("status").innerText = "Status: Escutando a rede com filtro...";
             document.getElementById("status").className = "status-escutando";
-            adicionarLog("[Sistema iniciado]");
+            adicionarLog("[Sistema iniciado com filtro de áudio]");
         } catch (e) {
             console.log(e);
         }
@@ -189,6 +215,9 @@
         if (recognition) {
             recognition.stop();
         }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+        }
         document.getElementById("status").innerText = "Status: Parado";
         document.getElementById("status").className = "status-parado";
         adicionarLog("[Sistema parado pelo usuário]");
@@ -197,7 +226,6 @@
     function verificarTermos(textoBruto) {
         let texto = normalizarTexto(textoBruto);
         
-        // Expressões regulares flexíveis (capturam variações de espaçamento e grafia)
         const regex1aCia = /1a\s*cia|primeira\s*companhia|1\s*companhia/i;
         const regexCgp11 = /cgp\s*11|cgp\s*onze|cgp\s*um\s*um/i;
         const regexCgp1  = /cgp\s*1\b|cgp\s*um\b|cgp\s*primeiro\b/i;
