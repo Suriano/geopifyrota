@@ -125,9 +125,8 @@
         #btn-localizacao { background-color: #34495e; }
         #btn-gravar { background-color: #c0392b; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
-        #btn-audio { background-color: #8e44ad; }
-        #btn-audio.gravando-audio { background-color: #e74c3c; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
+        #btn-relatorio { background-color: #27ae60; }
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
 
@@ -199,11 +198,6 @@
         .btn-atalho:active {
             background-color: #2c3e50;
         }
-        
-        .textarea-container {
-            position: relative;
-            margin-bottom: 10px;
-        }
         #textarea-ocorrencia {
             width: 100%;
             height: 80px;
@@ -211,28 +205,11 @@
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
-            padding-right: 40px;
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
+            margin-bottom: 10px;
         }
-        #btn-transcrever-modal {
-            position: absolute;
-            bottom: 8px;
-            right: 6px;
-            background-color: #8e44ad;
-            color: white;
-            border: none;
-            padding: 6px 8px;
-            font-size: 14px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        #btn-transcrever-modal.ouvindo {
-            background-color: #e74c3c;
-            animation: pulsar 1.5s infinite;
-        }
-
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -251,6 +228,7 @@
             border-radius: 4px;
         }
 
+        /* Modal para Gerar/Editar Relatório */
         #modal-gerar-relatorio {
             display: none;
             position: fixed;
@@ -334,42 +312,6 @@
             line-height: 1.4;
             text-transform: uppercase;
         }
-        
-        .lista-audios {
-            margin-top: 10px;
-            border-top: 1px dashed #ccc;
-            padding-top: 8px;
-        }
-        .audio-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 6px;
-            background: #f1f2f6;
-            padding: 6px;
-            border-radius: 4px;
-            gap: 5px;
-        }
-        .audio-item audio {
-            height: 30px;
-            flex: 1;
-            min-width: 120px;
-        }
-        .audio-acoes {
-            display: flex;
-            gap: 4px;
-        }
-        .btn-audio-acao {
-            padding: 4px 8px;
-            font-size: 10px;
-            border-radius: 4px;
-            border: none;
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .btn-salvar-audio { background-color: #27ae60; }
-        .btn-excluir-audio { background-color: #e74c3c; }
 
         #map {
             flex: 1;
@@ -396,8 +338,8 @@
             </div>
 
             <button id="btn-gravar">🔴 GRAVAR</button>
-            <button id="btn-audio">🎙️ ÁUDIO</button>
             <button id="btn-marcar">⭐ MARCAR</button>
+            <button id="btn-relatorio">📋 RELATÓRIO</button>
             <button id="btn-importar">📂 ABRIR</button>
             <button id="btn-limpar">🧹 LIMPAR</button>
             <input type="file" id="input-json" style="display: none;" />
@@ -418,10 +360,7 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
-            <div class="textarea-container">
-                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
-                <button type="button" id="btn-transcrever-modal" title="Transcrever voz para texto">🎙️</button>
-            </div>
+            <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -441,7 +380,7 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição (Flutuante na parte inferior) -->
+    <!-- Painel Formal de Exibição -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
@@ -452,10 +391,6 @@
             </div>
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
-        <div id="container-audios-salvos" class="lista-audios" style="display:none;">
-            <strong>ÁUDIOS GRAVADOS:</strong>
-            <div id="lista-audios-elementos"></div>
-        </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -469,7 +404,7 @@
             rotate: true,
             touchRotate: true,
             rotateControl: { position: "topright", behavior: "reset" }
-        });
+        }).setView([-23.5505, -46.6333], 13);
 
         L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
             attribution: 'Powered by Geoapify | © OpenStreetMap contributors',
@@ -488,12 +423,6 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
-        // Variáveis para gravação de áudio
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let isGravandoAudio = false;
-        let audiosGravados = []; 
-
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
         let ultimaRuaSalva = "";
@@ -510,8 +439,8 @@
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
-        const btnAudio = document.getElementById('btn-audio');
         const btnMarcar = document.getElementById('btn-marcar');
+        const btnRelatorio = document.getElementById('btn-relatorio');
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
@@ -520,8 +449,6 @@
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
-        const containerAudiosSalvos = document.getElementById('container-audios-salvos');
-        const listaAudiosElementos = document.getElementById('lista-audios-elementos');
         
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
@@ -529,7 +456,6 @@
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
-        const btnTranscreverModal = document.getElementById('btn-transcrever-modal');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
 
@@ -548,73 +474,64 @@
             textareaOcorrencia.focus();
         }
 
-        // --- TRANSCRIÇÃO DE VOZ NO MODAL ---
-        let recognitionModal = null;
-        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            recognitionModal = new SpeechRecognition();
-            recognitionModal.lang = 'pt-BR';
-            recognitionModal.continuous = false;
-            recognitionModal.interimResults = false;
+        var iconePolicialEmoji = L.divIcon({
+            className: 'policial-marker-label',
+            html: '👮‍♂️',
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+            popupAnchor: [0, -20]
+        });
 
-            recognitionModal.onresult = (event) => {
-                const transcricao = event.results[0][0].transcript.toUpperCase();
-                const atual = textareaOcorrencia.value.trim();
-                textareaOcorrencia.value = atual ? atual + " " + transcricao : transcricao;
-                btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎙️";
-                textareaOcorrencia.focus();
-            };
-
-            recognitionModal.onerror = () => {
-                btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎙️";
-            };
-
-            recognitionModal.onend = () => {
-                btnTranscreverModal.classList.remove('ouvindo');
-                btnTranscreverModal.textContent = "🎙️";
-            };
+        function styleFeature(feature) {
+            var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
+            var opacidadePreenchimento = (feature.properties && feature.properties['fill-opacity'] !== undefined) 
+                ? feature.properties['fill-opacity'] 
+                : 0.45;
+            return { color: corSetor, weight: 2.5, fillColor: corSetor, fillOpacity: opacidadePreenchimento };
         }
 
-        btnTranscreverModal.addEventListener('click', () => {
-            if (!recognitionModal) {
-                alert("Seu navegador não suporta reconhecimento de voz.");
-                return;
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                let nome = feature.properties.name || feature.properties.Name || 'Setor';
+                let descricao = feature.properties.description || '';
+                if (typeof descricao === 'object' && descricao.value) descricao = descricao.value;
+                let conteudoPopup = `<b>${nome}</b>`;
+                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') 
+                    conteudoPopup += `<br><span style="color: #555;">${descricao}</span>`;
+                layer.bindPopup(conteudoPopup);
+                layer.on({
+                    mouseover: function(e) { e.target.setStyle({ weight: 4, fillOpacity: 0.7 }); },
+                    mouseout: function(e) { e.target.setStyle(styleFeature(e.target.feature)); }
+                });
             }
-            if (btnTranscreverModal.classList.contains('ouvindo')) {
-                recognitionModal.stop();
-            } else {
-                recognitionModal.start();
-                btnTranscreverModal.classList.add('ouvindo');
-                btnTranscreverModal.textContent = "⏹️";
-            }
-        });
-        // -----------------------------------
+        }
 
-        const dadosSetoresKML = [
-            {
-                nome: "101",
-                cor: "#558B2F",
-                descricao: "Rua Dom Paulo Mariano<br>Av. Imperador Pedro II",
-                coordenadas: [
-                    [-23.6966454, -46.5507877], [-23.6977212, -46.5511418], [-23.6984236, -46.5514153], [-23.6987134, -46.5515655], [-23.6994564, -46.551984], [-23.7000065, -46.552212], [-23.7006205, -46.5525097], [-23.7009717, -46.5526948], [-23.7013057, -46.5528637], [-23.7015022, -46.5529388], [-23.7018657, -46.5529844], [-23.7020474, -46.5529764], [-23.7022169, -46.5529388], [-23.702627, -46.5527859], [-23.7032398, -46.552499], [-23.7034584, -46.5524024], [-23.7038219, -46.5522334], [-23.7041436, -46.5521288], [-23.7043057, -46.5520993], [-23.7045562, -46.5520671], [-23.7046495, -46.5520698], [-23.704873, -46.5520993], [-23.7050866, -46.5521556], [-23.7051652, -46.5521905], [-23.7052561, -46.5518338], [-23.7053224, -46.5515012], [-23.7053985, -46.5512705], [-23.7056392, -46.5506295], [-23.7058676, -46.5501735], [-23.706015, -46.5499079], [-23.7063858, -46.5491918], [-23.7065602, -46.5488699], [-23.706791, -46.5484166], [-23.71071054, -46.5478346], [-23.707405, -46.5474108], [-23.7076604, -46.5470889], [-23.7079846, -46.5467322], [-23.7084168, -46.5463299], [-23.7087704, -46.5460107], [-23.7091978, -46.54567], [-23.70928, -46.5456017], [-23.7097528, -46.5451873], [-23.7085249, -46.5454474], [-23.7084757, -46.5454635], [-23.7084242, -46.5454608], [-23.7083922, -46.545434], [-23.70838, -46.5453831], [-23.7086256, -46.5448305], [-23.7077881, -46.5444121], [-23.7074271, -46.5442458], [-23.7073608, -46.544227], [-23.706489, -46.5437603], [-23.7064251, -46.5437228], [-23.7046642, -46.5428269], [-23.7037703, -46.5424514], [-23.7036991, -46.5424138], [-23.7034731, -46.5422878], [-23.7033896, -46.5422636], [-23.7030581, -46.54221], [-23.70295, -46.5421751], [-23.7028247, -46.5421188], [-23.702724, -46.5420571], [-23.7024981, -46.541974], [-23.7024662, -46.542041], [-23.701808, -46.543704], [-23.7017687, -46.5438166], [-23.7016778, -46.5442565], [-23.7016385, -46.5444577], [-23.7015305, -46.5447232], [-23.7009729, -46.5458793], [-23.7005456, -46.5457398], [-23.7000249, -46.5456003], [-23.6997007, -46.5455145], [-23.6991702, -46.5454233], [-23.6989345, -46.5453804], [-23.6981191, -46.5451604], [-23.6980601, -46.5454233], [-23.6979864, -46.5461046], [-23.6978784, -46.5470863], [-23.6978342, -46.5473974], [-23.69779, -46.5480465], [-23.6977507, -46.5484756], [-23.697677, -46.5487653], [-23.6975051, -46.5491086], [-23.6968714, -46.5495195], [-23.6968174, -46.5506214], [-23.6966454, -46.5507877]
-                ]
-            }
+        var groupLayer = new L.FeatureGroup();
+
+        var fontesGeoJson = [
+          { nome: "Setores 1ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' },
+          { nome: "Setores 3ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' }   
         ];
 
-        // Renderizar os setores no mapa
-        dadosSetoresKML.forEach(setor => {
-            if (setor.coordenadas && setor.coordenadas.length > 0) {
-                const polygon = L.polygon(setor.coordenadas, {
-                    color: setor.cor,
-                    weight: 2,
-                    fillColor: setor.cor,
-                    fillOpacity: 0.35
-                }).addTo(map);
-                polygon.bindPopup(`<b>SETOR: ${setor.nome}</b><br>${setor.descricao}`);
-            }
-        });
+        function carregarArquivo(fonte, index) {
+            return fetch(fonte.url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro ao baixar: ' + fonte.url);
+                    return response.json();
+                })
+                .then(data => {
+                    var camadaGeoJson = L.geoJSON(data, { style: styleFeature, onEachFeature: onEachFeature });
+                    camadaGeoJson.addTo(map);
+                    groupLayer.addLayer(camadaGeoJson);
+                }).catch(error => console.error("Erro ao carregar " + fonte.nome + ":", error));
+        }
+
+        function resetarZoom() {
+            if (groupLayer.getLayers().length > 0) map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
+        }
+
+        Promise.all(fontesGeoJson.map((fonte, idx) => carregarArquivo(fonte, idx)))
+            .then(() => resetarZoom());
 
         function criarIconeViatura() {
             return L.divIcon({
@@ -639,7 +556,7 @@
                 try {
                     wakeLock = await navigator.wakeLock.request('screen');
                 } catch (err) {
-                    console.error(err);
+                    console.error(`${err.name}, ${err.message}`);
                 }
             }
         }
@@ -650,116 +567,16 @@
                     await wakeLock.release();
                     wakeLock = null;
                 } catch (err) {
-                    console.error(err);
+                    console.error(`${err.name}, ${err.message}`);
                 }
             }
         }
 
-        // --- FUNÇÕES DE GRAVAÇÃO DE ÁUDIO ---
-        btnAudio.addEventListener('click', async () => {
-            if (!isGravandoAudio) {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
-
-                    mediaRecorder.ondataavailable = event => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
-                    };
-
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const audioUrl = URL.createObjectURL(audioBlob);
-                        const horaAudio = new Date().toLocaleTimeString('pt-BR');
-                        
-                        audiosGravados.push({ hora: horaAudio, url: audioUrl, blob: audioBlob });
-                        renderizarListaAudios();
-                        falarTexto("Áudio gravado com sucesso.");
-                    };
-
-                    mediaRecorder.start();
-                    isGravandoAudio = true;
-                    btnAudio.textContent = "⏹️ PARAR ÁUDIO";
-                    btnAudio.classList.add('gravando-audio');
-                    instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO...";
-                    falarTexto("Gravando áudio.");
-                } catch (err) {
-                    alert("Erro ao acessar o microfone. Verifique as permissões.");
-                    console.error(err);
-                }
-            } else {
-                if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                    mediaRecorder.stop();
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                }
-                isGravandoAudio = false;
-                btnAudio.textContent = "🎙️ ÁUDIO";
-                btnAudio.classList.remove('gravando-audio');
-                instructionsDiv.innerHTML = "✅ ÁUDIO SALVO NO PAINEL!";
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible' && isGravando) {
+                await solicitarWakeLock();
             }
         });
-
-        function renderizarListaAudios() {
-            if (audiosGravados.length > 0) {
-                containerAudiosSalvos.style.display = "block";
-                listaAudiosElementos.innerHTML = "";
-                audiosGravados.forEach((item, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'audio-item';
-                    
-                    const label = document.createElement('span');
-                    label.style.fontSize = "10px";
-                    label.style.fontWeight = "bold";
-                    label.textContent = `#${index + 1} (${item.hora})`;
-
-                    const audioElem = document.createElement('audio');
-                    audioElem.controls = true;
-                    audioElem.src = item.url;
-
-                    const acoesDiv = document.createElement('div');
-                    acoesDiv.className = 'audio-acoes';
-
-                    const btnSalvar = document.createElement('button');
-                    btnSalvar.className = 'btn-audio-acao btn-salvar-audio';
-                    btnSalvar.textContent = '💾';
-                    btnSalvar.title = 'Salvar / Baixar áudio';
-                    btnSalvar.onclick = () => {
-                        const a = document.createElement('a');
-                        a.href = item.url;
-                        a.download = `audio_${item.hora.replace(/:/g, '-')}.webm`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    };
-
-                    const btnExcluir = document.createElement('button');
-                    btnExcluir.className = 'btn-audio-acao btn-excluir-audio';
-                    btnExcluir.textContent = '❌';
-                    btnExcluir.title = 'Excluir áudio';
-                    btnExcluir.onclick = () => {
-                        if (confirm(`Deseja excluir o áudio #${index + 1}?`)) {
-                            audiosGravados.splice(index, 1);
-                            renderizarListaAudios();
-                            falarTexto("Áudio excluído.");
-                        }
-                    };
-
-                    acoesDiv.appendChild(btnSalvar);
-                    acoesDiv.appendChild(btnExcluir);
-
-                    div.appendChild(label);
-                    div.appendChild(audioElem);
-                    div.appendChild(acoesDiv);
-                    listaAudiosElementos.appendChild(div);
-                });
-                painelRelatorio.style.display = "block";
-            } else {
-                containerAudiosSalvos.style.display = "none";
-            }
-        }
-        // ------------------------------------
 
         function emitirSomSalvamento() {
             try {
@@ -779,7 +596,7 @@
                 oscillator.start();
                 oscillator.stop(audioCtx.currentTime + 0.3);
             } catch (e) {
-                console.log("Áudio bloqueado.", e);
+                console.log("Áudio bloqueado ou não suportado sem interação prévia.", e);
             }
         }
 
@@ -831,7 +648,7 @@
             }
 
             if (registrosTrajeto.length === 0) {
-                relatorioFormal += `1. NENHUM REGISTRO DE ROTA INFORMADO AINDA.\n`;
+                relatorioFormal += `1. NENHUM REGISTRO INFORMADO AINDA.\n`;
             }
 
             if (pontosDeMelhoria.length > 0) {
@@ -840,15 +657,130 @@
                     const hora = pm.hora || 'N/A';
                     const rua = (pm.rua || 'N/A').toUpperCase();
                     const comentario = (pm.comentario || 'OCORRÊNCIA').toUpperCase();
-                    relatorioFormal += `• ÀS ${hora} - ${comentario} EM ${rua};\n`;
+                    relatorioFormal += `• ÀS ${hora} ${comentario} ${rua};\n`;
                 });
             }
 
-            if (!textoRelatorioPronto || registrosTrajeto.length > 0 || pontosDeMelhoria.length > 0) {
-                textoRelatorioPronto = relatorioFormal;
-            }
+            textoRelatorioPronto = relatorioFormal;
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             painelRelatorio.style.display = "block";
+            salvarEstadoLocal();
+        }
+
+        function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
+            if (ultimaLat === null || ultimaLon === null) {
+                alert("Aguarde a obtenção da sua localização atual antes de traçar a rota.");
+                return;
+            }
+
+            const urlRouting = `https://api.geoapify.com/v1/routing?waypoints=${ultimaLat},${ultimaLon}|${destinoLat},${destinoLon}&mode=drive&apiKey=${apiKey}`;
+
+            instructionsDiv.innerHTML = `🔄 CALCULANDO ROTA...`;
+
+            fetch(urlRouting)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        const routeFeature = data.features[0];
+                        
+                        if (routingLayer) {
+                            map.removeLayer(routingLayer);
+                        }
+
+                        routingLayer = L.geoJSON(routeFeature, {
+                            style: {
+                                color: '#3498db',
+                                weight: 6,
+                                opacity: 0.8
+                            }
+                        }).addTo(map);
+
+                        map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+
+                        if (markerDestino) map.removeLayer(markerDestino);
+                        markerDestino = L.marker([destinoLat, destinoLon]).addTo(map)
+                            .bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
+
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA:</b> ${enderecoFormatado.toUpperCase()}`;
+                        falarTexto("Rota calculada com sucesso.");
+                    } else {
+                        alert("Não foi possível encontrar uma rota para o destino selecionado.");
+                        instructionsDiv.innerHTML = `⚠️ FALHA AO CALCULAR ROTA.`;
+                    }
+                })
+                .catch(err => {
+                    console.error("Erro na API de Roteamento:", err);
+                    alert("Erro de conexão ao calcular a rota.");
+                });
+        }
+
+        let timeoutAutocomplete = null;
+        inputDestino.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(timeoutAutocomplete);
+
+            if (query.length < 3) {
+                sugestoesDestino.style.display = 'none';
+                sugestoesDestino.innerHTML = '';
+                return;
+            }
+
+            timeoutAutocomplete = setTimeout(() => {
+                let biasParam = ultimaLat && ultimaLon ? `&bias=proximity:${ultimaLon},${ultimaLat}` : '';
+                const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=5&lang=pt${biasParam}&apiKey=${apiKey}`;
+                
+                fetch(url)
+                    .then(res => res.json())
+                    .then(data => {
+                        sugestoesDestino.innerHTML = '';
+                        if (data.features && data.features.length > 0) {
+                            data.features.forEach(feature => {
+                                const props = feature.properties;
+                                const div = document.createElement('div');
+                                div.className = 'sugestao-item';
+                                div.textContent = props.formatted;
+                                
+                                div.addEventListener('click', () => {
+                                    inputDestino.value = props.formatted;
+                                    sugestoesDestino.style.display = 'none';
+                                    
+                                    const destLat = feature.geometry.coordinates[1];
+                                    const destLon = feature.geometry.coordinates[0];
+
+                                    calcularESobrescreverRota(destLat, destLon, props.formatted);
+                                });
+
+                                sugestoesDestino.appendChild(div);
+                            });
+                            sugestoesDestino.style.display = 'block';
+                        } else {
+                            sugestoesDestino.style.display = 'none';
+                        }
+                    })
+                    .catch(err => console.error("Erro no autocompletar:", err));
+            }, 300);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!document.getElementById('btn-voz-container').contains(e.target)) {
+                sugestoesDestino.style.display = 'none';
+            }
+        });
+
+        async function atualizarContadorGlobal() {
+            try {
+                const res = await fetch('https://api.countapi.xyz/hit/gps-rpm-patrulhamento/visitas');
+                const data = await res.json();
+                if (data && typeof data.value !== 'undefined') {
+                    document.getElementById('contador-visitas').textContent = data.value;
+                } else {
+                    throw new Error();
+                }
+            } catch (e) {
+                let locais = parseInt(localStorage.getItem('gps_rpm_acessos_fallback') || '1');
+                document.getElementById('contador-visitas').textContent = locais;
+                localStorage.setItem('gps_rpm_acessos_fallback', locais + 1);
+            }
         }
 
         function centralizarNaMinhaLocalizacao() {
@@ -871,13 +803,27 @@
             }, { enableHighAccuracy: true, timeout: 10000 });
         }
 
+        function salvarEstadoLocal() {
+            const estado = {
+                registrosTrajeto,
+                pontosDeMelhoria,
+                textoRelatorioPronto,
+                temRelatorioVisivel: painelRelatorio.style.display === "block",
+                isGravando,
+                segundosGravados
+            };
+            localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
         function avaliarRegistroPorDistanciaOuEndereco() {
             if (ultimaLat === null || ultimaLon === null) return;
+
             const novaCoord = [ultimaLat, ultimaLon];
             const horaAtual = new Date().toLocaleTimeString('pt-BR');
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
+
                 let deveSalvar = false;
                 if (!isGravando) return;
 
@@ -888,6 +834,7 @@
                         ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1],
                         ultimaLat, ultimaLon
                     );
+
                     if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
                         deveSalvar = true;
                     }
@@ -928,28 +875,146 @@
                 if (isGravando) {
                     avaliarRegistroPorDistanciaOuEndereco();
                 }
-            }, (err) => console.error(err), { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+
+            }, (err) => {
+                console.error("Erro de GPS no watchPosition:", err);
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        }
+
+        function restaurarEstadoLocal() {
+            const salvo = localStorage.getItem('gps_rpm_estado_atual');
+            if (!salvo) return;
+
+            try {
+                const estado = JSON.parse(salvo);
+                registrosTrajeto = estado.registrosTrajeto || [];
+                pontosDeMelhoria = estado.pontosDeMelhoria || [];
+                textoRelatorioPronto = estado.textoRelatorioPronto || "";
+                isGravando = estado.isGravando || false;
+                segundosGravados = estado.segundosGravados || 0;
+
+                if (estado.temRelatorioVisivel && textoRelatorioPronto) {
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                    painelRelatorio.style.display = "block";
+                }
+
+                const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
+                if (coordsValidas.length > 0) {
+                    trackLayer = L.polyline(coordsValidas, { color: isGravando ? '#c0392b' : '#2980b9', weight: 5 }).addTo(map);
+                    map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                    ultimaCoordenadaSalva = coordsValidas[coordsValidas.length - 1];
+                }
+
+                pontosDeMelhoria.forEach(pm => {
+                    if (pm.coordenadas) {
+                        const m = L.marker(pm.coordenadas).addTo(map)
+                            .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                        marcadoresMelhoriaLayers.push(m);
+                    }
+                });
+
+                if (isGravando) {
+                    btnGravar.classList.add('gravando');
+                    solicitarWakeLock();
+                    tempoGravacaoInterval = setInterval(() => {
+                        segundosGravados++;
+                        btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`;
+                        atualizarPainelRelatorioDinamico();
+                    }, 1000);
+                    instructionsDiv.innerHTML = "🔴 RETOMANDO RASTREIO...";
+                }
+            } catch (e) {
+                console.error("Erro ao recuperar estado salvo", e);
+            }
         }
 
         window.addEventListener('load', () => {
+            atualizarContadorGlobal();
             centralizarNaMinhaLocalizacao();
+            restaurarEstadoLocal();
             iniciarRastreamentoGlobal();
         });
 
-        btnImportar.addEventListener('click', () => inputJson.click());
-        btnFecharPainel.addEventListener('click', () => painelRelatorio.style.display = "none");
+        btnImportar.addEventListener('click', function() {
+            inputJson.click();
+        });
+
+        // Botão Relatório (Exibe Painel Inferior)
+        btnRelatorio.addEventListener('click', function() {
+            atualizarPainelRelatorioDinamico();
+        });
+
+        // Ação do Botão "EDITAR / GERAR" no painel inferior
+        btnGerarRelatorioModal.addEventListener('click', function() {
+            atualizarPainelRelatorioDinamico();
+            textareaRelatorioModal.value = textoRelatorioPronto;
+            modalGerarRelatorio.style.display = "flex";
+        });
+
+        btnModalRelatorioCancelar.addEventListener('click', function() {
+            modalGerarRelatorio.style.display = "none";
+        });
+
+        // Salvar/Baixar do Modal de Relatório
+        btnModalRelatorioSalvar.addEventListener('click', async function() {
+            const novoTexto = textareaRelatorioModal.value;
+            textoRelatorioPronto = novoTexto;
+            textoRelatorioVisivel.textContent = textoRelatorioPronto;
+            modalGerarRelatorio.style.display = "none";
+            salvarEstadoLocal();
+
+            const dadosRelatorio = {
+                dataGeracao: new Date().toLocaleDateString('pt-BR'),
+                tempoTotal: isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO',
+                historicoRuasETempo: registrosTrajeto,
+                pontosMarcados: pontosDeMelhoria,
+                textoFormatado: textoRelatorioPronto
+            };
+
+            const jsonString = JSON.stringify(dadosRelatorio, null, 2);
+            const nomeSugestao = `relatorio_operacional_${new Date().toISOString().slice(0,10)}.json`;
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const options = {
+                        suggestedName: nomeSugestao,
+                        types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
+                    };
+                    const handle = await window.showSaveFilePicker(options);
+                    const writable = await handle.createWritable();
+                    await writable.write(jsonString);
+                    await writable.close();
+                    instructionsDiv.innerHTML = "📋 RELATÓRIO SALVO!";
+                } catch (err) {
+                    if (err.name !== 'AbortError') console.error(err);
+                }
+            } else {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                const downloadAnchor = document.createElement('a');
+                downloadAnchor.setAttribute("href", dataStr);
+                downloadAnchor.setAttribute("download", nomeSugestao);
+                document.body.appendChild(downloadAnchor);
+                downloadAnchor.click();
+                downloadAnchor.remove();
+                instructionsDiv.innerHTML = "📋 RELATÓRIO BAIXADO!";
+            }
+            falarTexto("Relatório gerado e salvo.");
+        });
+
+        btnFecharPainel.addEventListener('click', function() {
+            painelRelatorio.style.display = "none";
+        });
 
         btnLimpar.addEventListener('click', function() {
-            if (confirm("Deseja realmente limpar os dados atuais?")) {
+            if (confirm("Deseja realmente limpar os dados atuais e iniciar um novo relatório?")) {
                 if (isGravando) {
                     clearInterval(tempoGravacaoInterval);
                     liberarWakeLock();
                 }
+                localStorage.removeItem('gps_rpm_estado_atual');
                 isGravando = false;
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
-                audiosGravados = [];
-                containerAudiosSalvos.style.display = "none";
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
@@ -959,27 +1024,69 @@
                 btnGravar.classList.remove('gravando');
 
                 if (trackLayer) map.removeLayer(trackLayer);
+                if (routingLayer) { map.removeLayer(routingLayer); routingLayer = null; }
+                if (markerDestino) { map.removeLayer(markerDestino); markerDestino = null; }
+                inputDestino.value = '';
+
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
                 instructionsDiv.innerHTML = "🧹 PRONTO PARA NOVO REGISTRO.";
                 falarTexto("Dados limpos.");
             }
         });
 
-        btnGerarRelatorioModal.addEventListener('click', function() {
-            atualizarPainelRelatorioDinamico();
-            textareaRelatorioModal.value = textoRelatorioPronto;
-            modalGerarRelatorio.style.display = "flex";
-            textareaRelatorioModal.focus();
-        });
+        inputJson.addEventListener('change', function(event) {
+            const arquivo = event.target.files[0];
+            if (!arquivo) return;
 
-        btnModalRelatorioCancelar.addEventListener('click', function() {
-            modalGerarRelatorio.style.display = "none";
-        });
+            const leitor = new FileReader();
+            leitor.onload = function(e) {
+                try {
+                    const dados = JSON.parse(e.target.result);
+                    const historico = dados.historicoRuasETempo || dados.historico || dados.pontos || [];
+                    const pontosAtencao = dados.pontosMarcados || dados.pontosDeMelhoria || [];
 
-        btnModalRelatorioSalvar.addEventListener('click', function() {
-            textoRelatorioPronto = textareaRelatorioModal.value;
-            textoRelatorioVisivel.textContent = textoRelatorioPronto;
-            modalGerarRelatorio.style.display = "none";
-            falarTexto("Relatório atualizado.");
+                    registrosTrajeto = historico;
+                    pontosDeMelhoria = pontosAtencao;
+                    textoRelatorioPronto = dados.textoFormatado || "";
+                    
+                    atualizarPainelRelatorioDinamico();
+                    instructionsDiv.innerHTML = `📂 CARREGADO COM SUCESSO.`;
+                    falarTexto("Relatório carregado.");
+
+                    if (trackLayer) map.removeLayer(trackLayer);
+                    marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                    marcadoresMelhoriaLayers = [];
+
+                    const coordsValidas = [];
+                    historico.forEach(item => {
+                        if (item.coordenadas && Array.isArray(item.coordenadas)) {
+                            coordsValidas.push(item.coordenadas);
+                        }
+                    });
+
+                    if (coordsValidas.length > 0) {
+                        trackLayer = L.polyline(coordsValidas, { color: '#2980b9', weight: 5 }).addTo(map);
+                        map.fitBounds(trackLayer.getBounds(), { padding: [50, 50] });
+                    }
+
+                    pontosAtencao.forEach(pm => {
+                        if (pm.coordenadas) {
+                            const m = L.marker(pm.coordenadas).addTo(map)
+                                .bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}<br><small>${pm.hora}</small>`);
+                            marcadoresMelhoriaLayers.push(m);
+                        }
+                    });
+
+                } catch (err) {
+                    alert("ERRO AO LER O ARQUIVO JSON.");
+                    console.error(err);
+                } finally {
+                    inputJson.value = '';
+                }
+            };
+            leitor.readAsText(arquivo);
         });
 
         btnWhatsapp.addEventListener('click', function() {
@@ -1016,6 +1123,11 @@
                 }, 1000);
 
                 falarTexto("Gravação iniciada.");
+
+                if (trackLayer) map.removeLayer(trackLayer);
+                marcadoresMelhoriaLayers.forEach(m => map.removeLayer(m));
+                marcadoresMelhoriaLayers = [];
+
             } else {
                 isGravando = false;
                 clearInterval(tempoGravacaoInterval);
@@ -1025,7 +1137,44 @@
                 btnGravar.classList.remove('gravando');
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA!";
                 falarTexto("Gravação encerrada.");
+
                 atualizarPainelRelatorioDinamico();
+
+                const dadosRota = {
+                    dataInicio: new Date().toLocaleDateString('pt-BR'),
+                    tempoTotal: formatarTempo(segundosGravados),
+                    historicoRuasETempo: registrosTrajeto,
+                    pontosMarcados: pontosDeMelhoria,
+                    textoFormatado: textoRelatorioPronto
+                };
+
+                const jsonString = JSON.stringify(dadosRota, null, 2);
+                const nomeSugestao = `viatura_trajeto_${new Date().toISOString().slice(0,10)}.json`;
+
+                if (window.showSaveFilePicker) {
+                    try {
+                        const options = {
+                            suggestedName: nomeSugestao,
+                            types: [{ description: 'Arquivo JSON', accept: { 'application/json': ['.json'] } }],
+                        };
+                        const handle = await window.showSaveFilePicker(options);
+                        const writable = await handle.createWritable();
+                        await writable.write(jsonString);
+                        await writable.close();
+                    } catch (err) {
+                        if (err.name !== 'AbortError') console.error(err);
+                    }
+                } else {
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", nomeSugestao);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                }
+
+                localStorage.removeItem('gps_rpm_estado_atual');
             }
         });
 
@@ -1049,17 +1198,11 @@
             });
         });
 
-        btnModalCancelar.addEventListener('click', () => {
-            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
-                recognitionModal.stop();
-            }
+        btnModalCancelar.addEventListener('click', function() {
             modalMarcar.style.display = "none";
         });
 
         btnModalOk.addEventListener('click', function() {
-            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
-                recognitionModal.stop();
-            }
             const nota = textareaOcorrencia.value.trim();
             if (nota !== "") {
                 const horaAtual = new Date().toLocaleTimeString('pt-BR');
@@ -1073,6 +1216,7 @@
                 });
 
                 atualizarPainelRelatorioDinamico();
+                salvarEstadoLocal();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
