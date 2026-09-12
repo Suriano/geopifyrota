@@ -125,8 +125,9 @@
         #btn-localizacao { background-color: #34495e; }
         #btn-gravar { background-color: #c0392b; }
         #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
+        #btn-audio { background-color: #8e44ad; }
+        #btn-audio.gravando-audio { background-color: #e74c3c; animation: pulsar 1.5s infinite; }
         #btn-marcar { background-color: #f39c12; }
-        #btn-relatorio { background-color: #27ae60; }
         #btn-importar { background-color: #2980b9; }
         #btn-limpar { background-color: #7f8c8d; }
 
@@ -198,6 +199,11 @@
         .btn-atalho:active {
             background-color: #2c3e50;
         }
+        
+        .textarea-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
         #textarea-ocorrencia {
             width: 100%;
             height: 80px;
@@ -205,11 +211,28 @@
             font-size: 11px;
             text-transform: uppercase;
             padding: 6px;
+            padding-right: 40px;
             border: 1px solid #ccc;
             border-radius: 4px;
             resize: none;
-            margin-bottom: 10px;
         }
+        #btn-transcrever-modal {
+            position: absolute;
+            bottom: 8px;
+            right: 6px;
+            background-color: #8e44ad;
+            color: white;
+            border: none;
+            padding: 6px 8px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #btn-transcrever-modal.ouvindo {
+            background-color: #e74c3c;
+            animation: pulsar 1.5s infinite;
+        }
+
         .modal-acoes {
             display: flex;
             justify-content: flex-end;
@@ -228,7 +251,6 @@
             border-radius: 4px;
         }
 
-        /* Modal para Gerar/Editar Relatório */
         #modal-gerar-relatorio {
             display: none;
             position: fixed;
@@ -312,6 +334,42 @@
             line-height: 1.4;
             text-transform: uppercase;
         }
+        
+        .lista-audios {
+            margin-top: 10px;
+            border-top: 1px dashed #ccc;
+            padding-top: 8px;
+        }
+        .audio-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            background: #f1f2f6;
+            padding: 6px;
+            border-radius: 4px;
+            gap: 5px;
+        }
+        .audio-item audio {
+            height: 30px;
+            flex: 1;
+            min-width: 120px;
+        }
+        .audio-acoes {
+            display: flex;
+            gap: 4px;
+        }
+        .btn-audio-acao {
+            padding: 4px 8px;
+            font-size: 10px;
+            border-radius: 4px;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-salvar-audio { background-color: #27ae60; }
+        .btn-excluir-audio { background-color: #e74c3c; }
 
         #map {
             flex: 1;
@@ -338,8 +396,8 @@
             </div>
 
             <button id="btn-gravar">🔴 GRAVAR</button>
+            <button id="btn-audio">🎙️ ÁUDIO</button>
             <button id="btn-marcar">⭐ MARCAR</button>
-            <button id="btn-relatorio">📋 RELATÓRIO</button>
             <button id="btn-importar">📂 ABRIR</button>
             <button id="btn-limpar">🧹 LIMPAR</button>
             <input type="file" id="input-json" style="display: none;" />
@@ -360,7 +418,10 @@
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
                 <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
             </div>
-            <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+            <div class="textarea-container">
+                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+                <button type="button" id="btn-transcrever-modal" title="Transcrever voz para texto">🎙️</button>
+            </div>
             <div class="modal-acoes">
                 <button type="button" id="btn-modal-cancelar">CANCELAR</button>
                 <button type="button" id="btn-modal-ok">OK</button>
@@ -380,7 +441,7 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição -->
+    <!-- Painel Formal de Exibição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
@@ -391,6 +452,10 @@
             </div>
         </div>
         <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
+        <div id="container-audios-salvos" class="lista-audios" style="display:none;">
+            <strong>ÁUDIOS GRAVADOS:</strong>
+            <div id="lista-audios-elementos"></div>
+        </div>
     </div>
 
     <!-- Leaflet JS -->
@@ -423,6 +488,12 @@
         let segundosGravados = 0;
         let wakeLock = null;
 
+        // Variáveis para gravação de áudio
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isGravandoAudio = false;
+        let audiosGravados = []; 
+
         const distanciaMinimaMetros = 100; 
         let ultimaCoordenadaSalva = null;
         let ultimaRuaSalva = "";
@@ -439,8 +510,8 @@
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
         const btnGravar = document.getElementById('btn-gravar');
+        const btnAudio = document.getElementById('btn-audio');
         const btnMarcar = document.getElementById('btn-marcar');
-        const btnRelatorio = document.getElementById('btn-relatorio');
         const btnImportar = document.getElementById('btn-importar');
         const btnLimpar = document.getElementById('btn-limpar');
         const btnWhatsapp = document.getElementById('btn-whatsapp');
@@ -449,6 +520,8 @@
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
+        const containerAudiosSalvos = document.getElementById('container-audios-salvos');
+        const listaAudiosElementos = document.getElementById('lista-audios-elementos');
         
         const inputDestino = document.getElementById('input-destino');
         const sugestoesDestino = document.getElementById('sugestoes-destino');
@@ -456,6 +529,7 @@
         const modalMarcar = document.getElementById('modal-marcar');
         const modalTituloLocal = document.getElementById('modal-titulo-local');
         const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
+        const btnTranscreverModal = document.getElementById('btn-transcrever-modal');
         const btnModalOk = document.getElementById('btn-modal-ok');
         const btnModalCancelar = document.getElementById('btn-modal-cancelar');
 
@@ -473,6 +547,50 @@
             }
             textareaOcorrencia.focus();
         }
+
+        // --- TRANSCRIÇÃO DE VOZ NO MODAL ---
+        let recognitionModal = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognitionModal = new SpeechRecognition();
+            recognitionModal.lang = 'pt-BR';
+            recognitionModal.continuous = false;
+            recognitionModal.interimResults = false;
+
+            recognitionModal.onresult = (event) => {
+                const transcricao = event.results[0][0].transcript.toUpperCase();
+                const atual = textareaOcorrencia.value.trim();
+                textareaOcorrencia.value = atual ? atual + " " + transcricao : transcricao;
+                btnTranscreverModal.classList.remove('ouvindo');
+                btnTranscreverModal.textContent = "🎙️";
+                textareaOcorrencia.focus();
+            };
+
+            recognitionModal.onerror = () => {
+                btnTranscreverModal.classList.remove('ouvindo');
+                btnTranscreverModal.textContent = "🎙️";
+            };
+
+            recognitionModal.onend = () => {
+                btnTranscreverModal.classList.remove('ouvindo');
+                btnTranscreverModal.textContent = "🎙️";
+            };
+        }
+
+        btnTranscreverModal.addEventListener('click', () => {
+            if (!recognitionModal) {
+                alert("Seu navegador não suporta reconhecimento de voz.");
+                return;
+            }
+            if (btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            } else {
+                recognitionModal.start();
+                btnTranscreverModal.classList.add('ouvindo');
+                btnTranscreverModal.textContent = "⏹️";
+            }
+        });
+        // -----------------------------------
 
         var iconePolicialEmoji = L.divIcon({
             className: 'policial-marker-label',
@@ -664,6 +782,54 @@
             textoRelatorioPronto = relatorioFormal;
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             painelRelatorio.style.display = "block";
+
+            // Renderizar lista de áudios no painel se houver
+            if (audiosGravados.length > 0) {
+                containerAudiosSalvos.style.display = "block";
+                listaAudiosElementos.innerHTML = "";
+                audiosGravados.forEach((audioObj, index) => {
+                    const divItem = document.createElement('div');
+                    divItem.className = 'audio-item';
+                    
+                    const audioElement = document.createElement('audio');
+                    audioElement.controls = true;
+                    audioElement.src = audioObj.url;
+                    
+                    const acoesDiv = document.createElement('div');
+                    acoesDiv.className = 'audio-acoes';
+
+                    const btnSalvar = document.createElement('button');
+                    btnSalvar.className = 'btn-audio-acao btn-salvar-audio';
+                    btnSalvar.textContent = '💾';
+                    btnSalvar.title = 'Baixar áudio';
+                    btnSalvar.onclick = () => {
+                        const a = document.createElement('a');
+                        a.href = audioObj.url;
+                        a.download = `audio_ocorrencia_${index + 1}.webm`;
+                        a.click();
+                    };
+
+                    const btnExcluir = document.createElement('button');
+                    btnExcluir.className = 'btn-audio-acao btn-excluir-audio';
+                    btnExcluir.textContent = '🗑️';
+                    btnExcluir.title = 'Excluir áudio';
+                    btnExcluir.onclick = () => {
+                        audiosGravados.splice(index, 1);
+                        atualizarPainelRelatorioDinamico();
+                    };
+
+                    acoesDiv.appendChild(btnSalvar);
+                    acoesDiv.appendChild(btnExcluir);
+
+                    divItem.appendChild(audioElement);
+                    divItem.appendChild(acoesDiv);
+                    listaAudiosElementos.appendChild(divItem);
+                });
+            } else {
+                containerAudiosSalvos.style.display = "none";
+                listaAudiosElementos.innerHTML = "";
+            }
+
             salvarEstadoLocal();
         }
 
@@ -935,12 +1101,55 @@
             iniciarRastreamentoGlobal();
         });
 
+        // --- BOTÃO GRAVAR ÁUDIO DIRETO ---
+        btnAudio.addEventListener('click', async function() {
+            if (!isGravandoAudio) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = event => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioUrl = URL.createObjectURL(audioBlob);
+                        audiosGravados.push({ url: audioUrl, blob: audioBlob });
+                        atualizarPainelRelatorioDinamico();
+                        falarTexto("Áudio gravado.");
+                    };
+
+                    mediaRecorder.start();
+                    isGravandoAudio = true;
+                    btnAudio.classList.add('gravando-audio');
+                    btnAudio.textContent = "⏹️ PARAR ÁUDIO";
+                    instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO...";
+                    falarTexto("Gravação de áudio iniciada.");
+                } catch (err) {
+                    alert("Erro ao acessar o microfone: " + err.message);
+                }
+            } else {
+                if (mediaRecorder) {
+                    mediaRecorder.stop();
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                isGravandoAudio = false;
+                btnAudio.classList.remove('gravando-audio');
+                btnAudio.textContent = "🎙️ ÁUDIO";
+                instructionsDiv.innerHTML = "✅ ÁUDIO SALVO NO PAINEL!";
+            }
+        });
+
         btnImportar.addEventListener('click', function() {
             inputJson.click();
         });
 
         // Botão Relatório (Exibe Painel Inferior)
-        btnRelatorio.addEventListener('click', function() {
+        btnRelatorio = document.getElementById('btn-relatorio'); // Se houver no escopo, mas tratamos clique via painel
+        
+        document.getElementById('btn-relatorio')?.addEventListener('click', function() {
             atualizarPainelRelatorioDinamico();
         });
 
@@ -1015,6 +1224,7 @@
                 isGravando = false;
                 registrosTrajeto = [];
                 pontosDeMelhoria = [];
+                audiosGravados = [];
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
@@ -1193,16 +1403,23 @@
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
                 ruaAtualPendente = ruaEncontrada;
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
+                textareaOcorrencia.value = "";
                 modalMarcar.style.display = "flex";
                 textareaOcorrencia.focus();
             });
         });
 
         btnModalCancelar.addEventListener('click', function() {
+            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            }
             modalMarcar.style.display = "none";
         });
 
         btnModalOk.addEventListener('click', function() {
+            if (recognitionModal && btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            }
             const nota = textareaOcorrencia.value.trim();
             if (nota !== "") {
                 const horaAtual = new Date().toLocaleTimeString('pt-BR');
