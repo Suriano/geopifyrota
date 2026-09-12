@@ -1,0 +1,139 @@
+
+
+
+
+
+
+
+
+
+
+<!-- Elemento do Mapa -->
+    <div id="map"></div>
+
+    <!-- 2. Importa o JS do Leaflet -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Inicializa o mapa
+        var map = L.map('map', { zoomControl: false }).setView([-23.5505, -46.6333], 13);
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19, attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Função para alternar visibilidade do painel
+        function alternarPainel() {
+            var panel = document.getElementById('control-panel');
+            var btnShow = document.getElementById('btn-show-panel');
+            
+            panel.classList.toggle('hidden');
+            
+            if (panel.classList.contains('hidden')) {
+                btnShow.style.display = 'block';
+            } else {
+                btnShow.style.display = 'none';
+            }
+        }
+
+        // --- CONFIGURAÇÃO DO ÍCONE PERSONALIZADO DO POLICIAL ---
+        var iconePolicialEmoji = L.divIcon({
+            className: 'policial-marker-label',
+            html: '👮‍♂️',
+            iconSize: [24, 24],
+            iconAnchor: [12, 24],
+            popupAnchor: [0, -20]
+        });
+
+        var meuIconeFinal = iconePolicialEmoji; 
+
+        function styleFeature(feature) {
+            var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
+            var opacidadePreenchimento = (feature.properties && feature.properties['fill-opacity'] !== undefined) 
+                ? feature.properties['fill-opacity'] 
+                : 0.45;
+            return { color: corSetor, weight: 2.5, fillColor: corSetor, fillOpacity: opacidadePreenchimento };
+        }
+
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                let nome = feature.properties.name || feature.properties.Name || 'Setor';
+                let descricao = feature.properties.description || '';
+                if (typeof descricao === 'object' && descricao.value) descricao = descricao.value;
+                let conteudoPopup = `<b>${nome}</b>`;
+                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') 
+                    conteudoPopup += `<br><span style="color: #555;">${descricao}</span>`;
+                layer.bindPopup(conteudoPopup);
+                layer.on({
+                    mouseover: function(e) { e.target.setStyle({ weight: 4, fillOpacity: 0.7 }); },
+                    mouseout: function(e) { e.target.setStyle(styleFeature(e.target.feature)); }
+                });
+            }
+        }
+
+        var groupLayer = new L.FeatureGroup();
+        var markerLocalizacao = null; 
+        var circleLocalizacao = null; 
+
+        var fontesGeoJson = [
+          { nome: "Setores 1ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' },
+          { nome: "Setores 3ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' }   
+        ];
+
+        function carregarArquivo(fonte, index) {
+            return fetch(fonte.url)
+                .then(response => {
+                    if (!response.ok) throw new Error('Erro ao baixar: ' + fonte.url);
+                    return response.json();
+                })
+                .then(data => {
+                    var camadaGeoJson = L.geoJSON(data, { style: styleFeature, onEachFeature: onEachFeature });
+                    camadaGeoJson.addTo(map);
+                    groupLayer.addLayer(camadaGeoJson);
+                    criarCheckboxFiltro(fonte.nome, index, camadaGeoJson);
+                }).catch(error => console.error("Erro ao carregar " + fonte.nome + ":", error));
+        }
+
+        function criarCheckboxFiltro(nomeCamada, index, layerRef) {
+            var container = document.getElementById('filters-container');
+            var label = document.createElement('label'); label.className = 'layer-toggle';
+            var checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = true; checkbox.id = 'chk-' + index;
+            checkbox.addEventListener('change', function() {
+                if (this.checked) map.addLayer(layerRef); else map.removeLayer(layerRef);
+            });
+            var span = document.createElement('span'); span.innerText = nomeCamada;
+            label.appendChild(checkbox); label.appendChild(span); container.appendChild(label);
+        }
+
+        function resetarZoom() {
+            if (groupLayer.getLayers().length > 0) map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] });
+        }
+
+        function encontrarLocalizacao() {
+            map.locate({setView: true, maxZoom: 16, watch: false});
+        }
+
+        map.on('locationfound', function(e) {
+            var radius = e.accuracy;
+
+            if (markerLocalizacao) {
+                map.removeLayer(markerLocalizacao);
+                map.removeLayer(circleLocalizacao);
+            }
+
+            markerLocalizacao = L.marker(e.latlng, {
+                icon: meuIconeFinal 
+            }).addTo(map)
+              .bindPopup("<b>Patrulheiro</b><br>Precisão: " + Math.round(radius) + " metros.").openPopup();
+
+            circleLocalizacao = L.circle(e.latlng, radius, {
+                color: '#1a73e8', fillColor: '#1a73e8', fillOpacity: 0.15, weight: 1
+            }).addTo(map);
+        });
+
+        map.on('locationerror', function(e) {
+            alert("Não foi possível obter sua localização. Verifique se o GPS está ativado e se permitiu o acesso no navegador.");
+        });
+
+        Promise.all(fontesGeoJson.map((fonte, idx) => carregarArquivo(fonte, idx)))
+            .then(() => resetarZoom());
