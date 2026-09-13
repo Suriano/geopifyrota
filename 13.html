@@ -762,7 +762,6 @@
         }
 
         function atualizarPainelRelatorioDinamico(forcarGeracao = false) {
-            // Ordena os arrays por horário (HH:MM) [cite: 3]
             registrosTrajeto.sort((a, b) => a.hora.localeCompare(b.hora));
             pontosDeMelhoria.sort((a, b) => a.hora.localeCompare(b.hora));
 
@@ -991,7 +990,6 @@
             if (ultimaLat === null || ultimaLon === null) return;
 
             const novaCoord = [ultimaLat, ultimaLon];
-            // Hora formatada sem segundos (HH:MM) [cite: 3]
             const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
@@ -1170,7 +1168,7 @@
             textoRelatorioPronto = novoTexto;
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             modalGerarRelatorio.style.display = "none";
-            salvarEstadoLocal(); // Força a gravação no localStorage imediatamente
+            salvarEstadoLocal();
 
             const dadosRelatorio = {
                 dataGeracao: new Date().toLocaleDateString('pt-BR'),
@@ -1398,7 +1396,6 @@
                 return; 
             }
 
-            // Hora formatada sem segundos (HH:MM) [cite: 3]
             const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             coordsAtuaisPendentes = [ultimaLat, ultimaLon];
 
@@ -1424,7 +1421,6 @@
             }
             const nota = textareaOcorrencia.value.trim();
             if (nota !== "") {
-                // Hora formatada sem segundos (HH:MM) [cite: 3]
                 const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                 const notaUpper = nota.toUpperCase();
 
@@ -1435,7 +1431,19 @@
                     comentario: notaUpper 
                 });
 
-                atualizarPainelRelatorioDinamico(true);
+                const novaLinha = `• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente};\n`;
+
+                if (!textoRelatorioPronto || textoRelatorioPronto.trim() === "") {
+                    atualizarPainelRelatorioDinamico(true);
+                } else {
+                    if (!textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
+                        textoRelatorioPronto += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                    }
+                    textoRelatorioPronto += novaLinha;
+                    textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                    painelRelatorio.style.display = "block";
+                    salvarEstadoLocal();
+                }
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
