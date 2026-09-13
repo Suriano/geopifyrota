@@ -506,7 +506,6 @@
         let ultimaLat = null;
         let ultimaLon = null;
         let textoRelatorioPronto = "";
-        let textoEditadoManualmente = false; // Controle se o usuário editou na mão
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -755,7 +754,6 @@
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
-                textoEditadoManualmente,
                 temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
                 segundosGravados
@@ -763,9 +761,8 @@
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
         }
 
-        // Sempre reconstrói o relatório com os dados atualizados em tempo real
-        function atualizarPainelRelatorioDinamico(forcarAtualizacao = false) {
-            if (!textoEditadoManualmente || forcarAtualizacao) {
+        function atualizarPainelRelatorioDinamico(forcarGeracao = false) {
+            if (forcarGeracao || !textoRelatorioPronto || textoRelatorioPronto.trim() === "") {
                 let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
                 relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
                 relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
@@ -1021,7 +1018,7 @@
                         coordenadas: novaCoord 
                     });
                     
-                    atualizarPainelRelatorioDinamico();
+                    atualizarPainelRelatorioDinamico(true);
                     emitirSomSalvamento();
 
                     if (trackLayer) map.removeLayer(trackLayer);
@@ -1061,7 +1058,6 @@
                 registrosTrajeto = estado.registrosTrajeto || [];
                 pontosDeMelhoria = estado.pontosDeMelhoria || [];
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
-                textoEditadoManualmente = estado.textoEditadoManualmente || false;
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
 
@@ -1154,7 +1150,7 @@
 
         // Ação do Botão "EDITAR / GERAR" no painel inferior
         btnGerarRelatorioModal.addEventListener('click', function() {
-            atualizarPainelRelatorioDinamico(true);
+            atualizarPainelRelatorioDinamico();
             textareaRelatorioModal.value = textoRelatorioPronto;
             modalGerarRelatorio.style.display = "flex";
         });
@@ -1167,10 +1163,9 @@
         btnModalRelatorioSalvar.addEventListener('click', async function() {
             const novoTexto = textareaRelatorioModal.value;
             textoRelatorioPronto = novoTexto;
-            textoEditadoManualmente = true; // Marca como editado manualmente
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             modalGerarRelatorio.style.display = "none";
-            salvarEstadoLocal();
+            salvarEstadoLocal(); // Força a gravação no localStorage imediatamente
 
             const dadosRelatorio = {
                 dataGeracao: new Date().toLocaleDateString('pt-BR'),
@@ -1229,7 +1224,6 @@
                 ultimaCoordenadaSalva = null;
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
-                textoEditadoManualmente = false;
                 textoRelatorioVisivel.textContent = "";
                 painelRelatorio.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
@@ -1262,9 +1256,8 @@
                     registrosTrajeto = historico;
                     pontosDeMelhoria = pontosAtencao;
                     textoRelatorioPronto = dados.textoFormatado || "";
-                    textoEditadoManualmente = !!textoRelatorioPronto;
                     
-                    atualizarPainelRelatorioDinamico();
+                    atualizarPainelRelatorioDinamico(true);
                     instructionsDiv.innerHTML = `📂 CARREGADO COM SUCESSO.`;
                     falarTexto("Relatório carregado.");
 
@@ -1435,9 +1428,19 @@
                     comentario: notaUpper 
                 });
 
-                // Força a atualização do histórico ao adicionar ponto
-                textoEditadoManualmente = false; 
-                atualizarPainelRelatorioDinamico(true);
+                // INTEGRANDO AO HISTÓRICO EXISTENTE EM VEZ DE ZERAR
+                const novaLinha = `• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente.toUpperCase()};\n`;
+                if (textoRelatorioPronto && textoRelatorioPronto.trim() !== "") {
+                    if (textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
+                        textoRelatorioPronto = textoRelatorioPronto.replace("ALTERAÇÕES / PONTOS MARCADOS:\n", "ALTERAÇÕES / PONTOS MARCADOS:\n" + novaLinha);
+                    } else {
+                        textoRelatorioPronto += `\nALTERAÇÕES / PONTOS MARCADOS:\n` + novaLinha;
+                    }
+                } else {
+                    atualizarPainelRelatorioDinamico(true);
+                }
+
+                textoRelatorioVisivel.textContent = textoRelatorioPronto;
                 salvarEstadoLocal();
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
