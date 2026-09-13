@@ -762,6 +762,10 @@
         }
 
         function atualizarPainelRelatorioDinamico(forcarGeracao = false) {
+            // Ordena os arrays por horário (HH:MM) [cite: 3]
+            registrosTrajeto.sort((a, b) => a.hora.localeCompare(b.hora));
+            pontosDeMelhoria.sort((a, b) => a.hora.localeCompare(b.hora));
+
             if (forcarGeracao || !textoRelatorioPronto || textoRelatorioPronto.trim() === "") {
                 let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL\n`;
                 relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
@@ -987,7 +991,8 @@
             if (ultimaLat === null || ultimaLon === null) return;
 
             const novaCoord = [ultimaLat, ultimaLon];
-            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            // Hora formatada sem segundos (HH:MM) [cite: 3]
+            const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
                 ruaAtualNome = nomeRua;
@@ -1393,7 +1398,8 @@
                 return; 
             }
 
-            const horaAtual = new Date().toLocaleTimeString('pt-BR');
+            // Hora formatada sem segundos (HH:MM) [cite: 3]
+            const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             coordsAtuaisPendentes = [ultimaLat, ultimaLon];
 
             obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
@@ -1418,7 +1424,8 @@
             }
             const nota = textareaOcorrencia.value.trim();
             if (nota !== "") {
-                const horaAtual = new Date().toLocaleTimeString('pt-BR');
+                // Hora formatada sem segundos (HH:MM) [cite: 3]
+                const horaAtual = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
                 const notaUpper = nota.toUpperCase();
 
                 pontosDeMelhoria.push({ 
@@ -1428,20 +1435,7 @@
                     comentario: notaUpper 
                 });
 
-                // INTEGRANDO AO HISTÓRICO EXISTENTE EM VEZ DE ZERAR
-                const novaLinha = `• ÀS ${horaAtual} ${notaUpper} ${ruaAtualPendente.toUpperCase()};\n`;
-                if (textoRelatorioPronto && textoRelatorioPronto.trim() !== "") {
-                    if (textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
-                        textoRelatorioPronto = textoRelatorioPronto.replace("ALTERAÇÕES / PONTOS MARCADOS:\n", "ALTERAÇÕES / PONTOS MARCADOS:\n" + novaLinha);
-                    } else {
-                        textoRelatorioPronto += `\nALTERAÇÕES / PONTOS MARCADOS:\n` + novaLinha;
-                    }
-                } else {
-                    atualizarPainelRelatorioDinamico(true);
-                }
-
-                textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                salvarEstadoLocal();
+                atualizarPainelRelatorioDinamico(true);
 
                 const m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${notaUpper}`).openPopup();
                 marcadoresMelhoriaLayers.push(m);
