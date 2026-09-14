@@ -301,13 +301,10 @@
             margin-bottom: 8px;
             border-bottom: 1px solid #ccc;
             padding-bottom: 6px;
-            flex-wrap: wrap;
-            gap: 4px;
         }
         .relatorio-acoes {
             display: flex;
-            gap: 4px;
-            align-items: center;
+            gap: 5px;
         }
         #btn-whatsapp {
             background-color: #25d366;
@@ -327,13 +324,6 @@
             background-color: #27ae60;
             color: white;
             padding: 6px 10px;
-            font-size: 11px;
-            border-radius: 4px;
-        }
-        .btn-fonte {
-            background-color: #34495e;
-            color: white;
-            padding: 5px 8px;
             font-size: 11px;
             border-radius: 4px;
         }
@@ -361,7 +351,6 @@
             font-family: Arial, sans-serif;
             line-height: 1.4;
             text-transform: uppercase;
-            font-size: 12px; /* Tamanho base ajustável dinamicamente */
         }
         
         .lista-audios {
@@ -476,13 +465,9 @@
     <!-- Painel Formal de Exibição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <strong>HISTÓRICO:</strong>
-                <button id="btn-diminuir-fonte" class="btn-fonte" title="Diminuir Letra">A-</button>
-                <button id="btn-aumentar-fonte" class="btn-fonte" title="Aumentar Letra">A+</button>
-            </div>
+            <strong>HISTÓRICO:</strong>
             <div class="relatorio-acoes">
-                <button id="btn-gerar-relatorio-modal">✏️ EDITAR</button>
+                <button id="btn-gerar-relatorio-modal">✏️ EDITAR / GERAR</button>
                 <button id="btn-whatsapp">💬 WPP</button>
                 <button id="btn-fechar-painel">❌</button>
             </div>
@@ -542,7 +527,6 @@
         let ultimaLat = null;
         let ultimaLon = null;
         let textoRelatorioPronto = "";
-        let tamanhoFonteAtual = 12; // Tamanho inicial da letra do histórico em px
 
         const instructionsDiv = document.getElementById('instructions');
         const btnLocalizacao = document.getElementById('btn-localizacao');
@@ -555,8 +539,6 @@
         const btnGerarRelatorioModal = document.getElementById('btn-gerar-relatorio-modal');
         const btnFecharPainel = document.getElementById('btn-fechar-painel');
         const btnAbrirPainel = document.getElementById('btn-abrir-painel');
-        const btnAumentarFonte = document.getElementById('btn-aumentar-fonte');
-        const btnDiminuirFonte = document.getElementById('btn-diminuir-fonte');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
@@ -577,23 +559,6 @@
         const textareaRelatorioModal = document.getElementById('textarea-relatorio-modal');
         const btnModalRelatorioSalvar = document.getElementById('btn-modal-relatorio-salvar');
         const btnModalRelatorioCancelar = document.getElementById('btn-modal-relatorio-cancelar');
-
-        // Controles de Tamanho de Fonte do Histórico
-        btnAumentarFonte.addEventListener('click', () => {
-            if (tamanhoFonteAtual < 22) {
-                tamanhoFonteAtual += 2;
-                textoRelatorioVisivel.style.fontSize = tamanhoFonteAtual + 'px';
-                salvarEstadoLocal();
-            }
-        });
-
-        btnDiminuirFonte.addEventListener('click', () => {
-            if (tamanhoFonteAtual > 9) {
-                tamanhoFonteAtual -= 2;
-                textoRelatorioVisivel.style.fontSize = tamanhoFonteAtual + 'px';
-                salvarEstadoLocal();
-            }
-        });
 
         function inserirAtalho(texto) {
             const atual = textareaOcorrencia.value.trim();
@@ -813,8 +778,7 @@
                 textoRelatorioPronto,
                 temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
-                segundosGravados,
-                tamanhoFonteAtual
+                segundosGravados
             };
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
         }
@@ -876,9 +840,8 @@
             }
 
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
-            textoRelatorioVisivel.style.fontSize = tamanhoFonteAtual + 'px';
             painelRelatorio.style.display = "block";
-            btnAbrirPainel.style.display = "none";
+            btnAbrirPainel.style.display = "none"; // Oculta o botão flutuante se o painel estiver aberto
 
             if (audiosGravados.length > 0) {
                 containerAudiosSalvos.style.display = "block";
@@ -1143,14 +1106,13 @@
                 textoRelatorioPronto = estado.textoRelatorioPronto || "";
                 isGravando = estado.isGravando || false;
                 segundosGravados = estado.segundosGravados || 0;
-                tamanhoFonteAtual = estado.tamanhoFonteAtual || 12;
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                    textoRelatorioVisivel.style.fontSize = tamanhoFonteAtual + 'px';
                     painelRelatorio.style.display = "block";
                     btnAbrirPainel.style.display = "none";
                 } else if (textoRelatorioPronto) {
+                    // Se houver relatório mas estava fechado, mostra o botão flutuante de abrir
                     btnAbrirPainel.style.display = "block";
                 }
 
@@ -1290,12 +1252,14 @@
             falarTexto("Relatório gerado e salvo.");
         });
 
+        // Fechar painel e mostrar botão flutuante para reabrir
         btnFecharPainel.addEventListener('click', function() {
             painelRelatorio.style.display = "none";
             btnAbrirPainel.style.display = "block";
             salvarEstadoLocal();
         });
 
+        // Reabrir painel pelo botão flutuante
         btnAbrirPainel.addEventListener('click', function() {
             if (textoRelatorioPronto.trim() !== "") {
                 painelRelatorio.style.display = "block";
@@ -1502,7 +1466,7 @@
                 modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada} ÀS ${horaAtual}`;
                 textareaOcorrencia.value = "";
                 modalMarcar.style.display = "flex";
-                textareaOcorrency.focus();
+                textareaOcorrencia.focus();
             });
         });
 
