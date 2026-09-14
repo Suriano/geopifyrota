@@ -88,15 +88,28 @@
 
       <!-- Tabela de Registros -->
       <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-slate-200 flex flex-col">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 pb-2 border-b">
+        <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-2 border-b">
           <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
             <i class="fa-solid fa-list-check text-blue-600"></i>
             Histórico e Cautelas Ativas
           </h2>
           
-          <div class="relative w-full sm:w-64">
-            <input type="text" id="filtroPesquisa" placeholder="Buscar por RE, Usuário ou Câmera..." class="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
-            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+          <!-- Filtros de Pesquisa e Data -->
+          <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
+            <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2.5 py-1.5 rounded-lg">
+              <span class="text-xs text-slate-500 font-medium">De:</span>
+              <input type="date" id="dataInicio" class="text-xs bg-transparent focus:outline-none text-slate-700">
+              <span class="text-xs text-slate-500 font-medium ml-1">Até:</span>
+              <input type="date" id="dataFim" class="text-xs bg-transparent focus:outline-none text-slate-700">
+              <button onclick="limparFiltroData()" title="Limpar datas" class="text-slate-400 hover:text-slate-600 text-xs ml-1">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="relative flex-1 sm:w-56">
+              <input type="text" id="filtroPesquisa" placeholder="Buscar por RE, Usuário ou Câmera..." class="w-full pl-9 pr-4 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-sm"></i>
+            </div>
           </div>
         </div>
 
@@ -270,6 +283,8 @@
     const formCamera = document.getElementById('formCamera');
     const tabelaCorpo = document.getElementById('tabelaCorpo');
     const filtroPesquisa = document.getElementById('filtroPesquisa');
+    const inputDataInicio = document.getElementById('dataInicio');
+    const inputDataFim = document.getElementById('dataFim');
 
     const inputRe = document.getElementById('re');
     const dropdownRe = document.getElementById('dropdownRe');
@@ -533,19 +548,34 @@
 
     function renderizarTabela() {
       const termo = filtroPesquisa.value.toLowerCase();
+      const dataInicioVal = inputDataInicio.value; // YYYY-MM-DD
+      const dataFimVal = inputDataFim.value;       // YYYY-MM-DD
+
       tabelaCorpo.innerHTML = '';
 
-      const filtrados = cautelasCache.filter(item => 
-        (item.usuario && item.usuario.toLowerCase().includes(termo)) ||
-        (item.re && item.re.toLowerCase().includes(termo)) ||
-        (item.numCamera && item.numCamera.toLowerCase().includes(termo)) ||
-        (item.graduacao && item.graduacao.toLowerCase().includes(termo))
-      );
+      const filtrados = cautelasCache.filter(item => {
+        const matchTexto = 
+          (item.usuario && item.usuario.toLowerCase().includes(termo)) ||
+          (item.re && item.re.toLowerCase().includes(termo)) ||
+          (item.numCamera && item.numCamera.toLowerCase().includes(termo)) ||
+          (item.graduacao && item.graduacao.toLowerCase().includes(termo));
+
+        if (!matchTexto) return false;
+
+        if (dataInicioVal || dataFimVal) {
+          if (!item.dataRetirada) return false;
+          const dataItemStr = item.dataRetirada.slice(0, 10); // Formato YYYY-MM-DD
+          if (dataInicioVal && dataItemStr < dataInicioVal) return false;
+          if (dataFimVal && dataItemStr > dataFimVal) return false;
+        }
+
+        return true;
+      });
 
       if (filtrados.length === 0) {
         tabelaCorpo.innerHTML = `
           <tr>
-            <td colspan="7" class="py-8 text-center text-slate-400">Nenhum registro encontrado.</td>
+            <td colspan="7" class="py-8 text-center text-slate-400">Nenhum registro encontrado para este filtro.</td>
           </tr>
         `;
         document.getElementById('contadorRegistros').textContent = `Total exibido: 0`;
@@ -593,8 +623,14 @@
         tabelaCorpo.appendChild(tr);
       });
 
-      document.getElementById('contadorRegistros').textContent = `Total de registros: ${cautelasCache.length}`;
+      document.getElementById('contadorRegistros').textContent = `Total de registros: ${filtrados.length} de ${cautelasCache.length}`;
     }
+
+    window.limparFiltroData = function() {
+      inputDataInicio.value = '';
+      inputDataFim.value = '';
+      renderizarTabela();
+    };
 
     formCamera.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -648,6 +684,8 @@
     };
 
     filtroPesquisa.addEventListener('input', renderizarTabela);
+    inputDataInicio.addEventListener('change', renderizarTabela);
+    inputDataFim.addEventListener('change', renderizarTabela);
   </script>
 </body>
 </html>
