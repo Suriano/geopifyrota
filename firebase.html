@@ -279,11 +279,16 @@
     <!-- Firebase SDKs (Modular v10) -->
     <script type="module">
     
-        
+
+
+
+    <!-- Firebase SDKs (Modular v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         
 
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -301,7 +306,7 @@ const firebaseConfig = {
   measurementId: "G-9CE457DN5W"
 };
 
-// Initialize Firebase
+// Initialize Firebas
 const app = initializeApp(firebaseConfig);
 const analytics = getAnalytics(app);
 
