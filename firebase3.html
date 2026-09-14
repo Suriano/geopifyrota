@@ -356,11 +356,7 @@
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                if (!viaturaAtual) {
-                    viaturaAtual = prompt("Informe o prefixo da sua viatura (Ex: M-06123):") || "VIATURA_GERAL";
-                    viaturaAtual = viaturaAtual.toUpperCase();
-                    localStorage.setItem('gps_rpm_viatura', viaturaAtual);
-                }
+                viaturaAtual = localStorage.getItem('gps_rpm_viatura') || viaturaAtual || 'VIATURA_GERAL';
                 lblViaturaAtiva.textContent = viaturaAtual;
                 loginScreen.style.display = 'none';
                 appContainer.style.display = 'flex';
@@ -377,7 +373,6 @@
         // =========================================================
         let atualizandoRemotamente = false;
 
-        // Sincronizar destino enquanto o usuário digita (específico da viatura)
         inputDestino.addEventListener('input', () => {
             if (atualizandoRemotamente || !viaturaAtual) return;
             const valorDigitado = inputDestino.value;
@@ -663,7 +658,7 @@
                     let linhaTrajeto = `${registrosTrajeto.length}. ÀS ${novoPonto.hora} - LOCAL: ${novoPonto.rua.toUpperCase()}.\n`;
                     if (textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
                         let partes = textoRelatorioPronto.split("ALTERAÇÕES / PONTOS MARCADOS:");
-                        textoRelatorioPronto = partes[0] + linhaTrajeto + "\nALTERAÇÕES / PONTOS MARCADOS:" + partes[1];
+                        textoRelatorioPronto = partes[0] + linhaTrajeto + "\nALTERAÇÕES / PONTOS MARCADOS:" + partes;
                     } else {
                         textoRelatorioPronto += linhaTrajeto;
                     }
@@ -681,7 +676,6 @@
             painelRelatorio.style.display = "block";
             btnAbrirPainel.style.display = "none";
 
-            // Sincronizar via Firebase Realtime Database isolado pela viatura
             if (typeof window.sincronizarRelatorioFirebase === 'function') {
                 window.sincronizarRelatorioFirebase(textoRelatorioPronto);
             }
@@ -760,7 +754,7 @@
                                 div.addEventListener('click', () => {
                                     inputDestino.value = feature.properties.formatted;
                                     sugestoesDestino.style.display = 'none';
-                                    calcularESobrescreverRota(feature.geometry.coordinates[1], feature.geometry.coordinates[0], feature.properties.formatted);
+                                    calcularESobrescreverRota(feature.geometry.coordinates, feature.geometry.coordinates[0], feature.properties.formatted);
                                 });
                                 sugestoesDestino.appendChild(div);
                             });
@@ -807,7 +801,7 @@
                 if (!ultimaCoordenadaSalva) {
                     deveSalvar = true;
                 } else {
-                    let distancia = calcularDistanciaMetros(ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1], ultimaLat, ultimaLon);
+                    let distancia = calcularDistanciaMetros(ultimaCoordenadaSalva[0], ultimaCoordenadaSalva, ultimaLat, ultimaLon);
                     if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
                         deveSalvar = true;
                     }
