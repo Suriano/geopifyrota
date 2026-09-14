@@ -277,8 +277,8 @@
             margin-bottom: 10px;
         }
 
-        /* EFEITO DE PAINEL (SLIDE-UP / SLIDE-DOWN) */
         #painel-relatorio {
+            display: none;
             position: absolute;
             bottom: 0;
             left: 0;
@@ -293,17 +293,7 @@
             box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
             border-top-left-radius: 12px;
             border-top-right-radius: 12px;
-            
-            /* Propriedades de Transição */
-            transform: translateY(100%);
-            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-            visibility: hidden;
         }
-        #painel-relatorio.ativo {
-            transform: translateY(0);
-            visibility: visible;
-        }
-
         .relatorio-header {
             display: flex;
             justify-content: space-between;
@@ -337,6 +327,24 @@
             font-size: 11px;
             border-radius: 4px;
         }
+        
+        /* Botão flutuante para reabrir o painel */
+        #btn-abrir-painel {
+            display: none;
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 10px 14px;
+            font-size: 12px;
+            border-radius: 30px;
+            z-index: 1400;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            font-weight: bold;
+        }
+
         .relatorio-conteudo {
             white-space: pre-wrap;
             color: #222;
@@ -418,6 +426,9 @@
         <div id="map"></div>
     </div>
 
+    <!-- Botão Flutuante para Abrir o Painel Novamente -->
+    <button id="btn-abrir-painel">📋 HISTÓRICO</button>
+
     <!-- Modal Personalizado de Marcação -->
     <div id="modal-marcar">
         <div class="modal-conteudo">
@@ -451,7 +462,7 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição (Flutuante na parte inferior com efeito de transição) -->
+    <!-- Painel Formal de Exibição (Flutuante na parte inferior) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
@@ -527,6 +538,7 @@
         const btnWhatsapp = document.getElementById('btn-whatsapp');
         const btnGerarRelatorioModal = document.getElementById('btn-gerar-relatorio-modal');
         const btnFecharPainel = document.getElementById('btn-fechar-painel');
+        const btnAbrirPainel = document.getElementById('btn-abrir-painel');
         const inputJson = document.getElementById('input-json');
         const painelRelatorio = document.getElementById('painel-relatorio');
         const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
@@ -764,7 +776,7 @@
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
-                temRelatorioVisivel: painelRelatorio.classList.contains('ativo'),
+                temRelatorioVisivel: painelRelatorio.style.display === "block",
                 isGravando,
                 segundosGravados
             };
@@ -828,9 +840,8 @@
             }
 
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
-            
-            // Ativa o painel aplicando a classe que executa o efeito de painel/slide-up
-            painelRelatorio.classList.add('ativo');
+            painelRelatorio.style.display = "block";
+            btnAbrirPainel.style.display = "none"; // Oculta o botão flutuante se o painel estiver aberto
 
             if (audiosGravados.length > 0) {
                 containerAudiosSalvos.style.display = "block";
@@ -1098,7 +1109,11 @@
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                    painelRelatorio.classList.add('ativo');
+                    painelRelatorio.style.display = "block";
+                    btnAbrirPainel.style.display = "none";
+                } else if (textoRelatorioPronto) {
+                    // Se houver relatório mas estava fechado, mostra o botão flutuante de abrir
+                    btnAbrirPainel.style.display = "block";
                 }
 
                 const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
@@ -1237,10 +1252,22 @@
             falarTexto("Relatório gerado e salvo.");
         });
 
-        // Efeito de recolhimento suave ao fechar o painel
+        // Fechar painel e mostrar botão flutuante para reabrir
         btnFecharPainel.addEventListener('click', function() {
-            painelRelatorio.classList.remove('ativo');
+            painelRelatorio.style.display = "none";
+            btnAbrirPainel.style.display = "block";
             salvarEstadoLocal();
+        });
+
+        // Reabrir painel pelo botão flutuante
+        btnAbrirPainel.addEventListener('click', function() {
+            if (textoRelatorioPronto.trim() !== "") {
+                painelRelatorio.style.display = "block";
+                btnAbrirPainel.style.display = "none";
+                salvarEstadoLocal();
+            } else {
+                alert("Ainda não há dados no relatório para exibir.");
+            }
         });
 
         btnLimpar.addEventListener('click', function() {
@@ -1258,7 +1285,8 @@
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
                 textoRelatorioVisivel.textContent = "";
-                painelRelatorio.classList.remove('ativo');
+                painelRelatorio.style.display = "none";
+                btnAbrirPainel.style.display = "none";
                 btnGravar.textContent = "🔴 GRAVAR";
                 btnGravar.classList.remove('gravando');
 
