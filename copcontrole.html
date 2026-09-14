@@ -48,8 +48,11 @@
         
         <form id="formCamera" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">RE (Registro / Matrícula) <span class="text-xs text-blue-600 font-normal">(Digite para buscar)</span></label>
-            <input type="text" id="re" required placeholder="Ex: 123456-7" class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <label class="block text-sm font-medium text-slate-700 mb-1">RE (Registro / Matrícula) <span class="text-xs text-blue-600 font-normal">(Digite ou selecione da base)</span></label>
+            <input type="text" id="re" list="listaPoliciais" required placeholder="Ex: 123456-7" class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            <datalist id="listaPoliciais">
+              <!-- Preenchido via JS do Firebase -->
+            </datalist>
           </div>
 
           <div>
@@ -155,7 +158,7 @@
         </form>
 
         <div>
-          <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Policiais Cadastrados</h4>
+          <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Policiais Cadastrados na Base</h4>
           <div class="max-h-52 overflow-y-auto border border-slate-200 rounded-lg">
             <table class="w-full text-left text-sm">
               <thead class="bg-slate-100 text-slate-600 text-xs">
@@ -177,24 +180,20 @@
   </div>
 
   <script>
-    // ==========================================
-    // CONFIGURAÇÃO DO FIREBASE (SUBSTITUA AQUI)
-    // ==========================================
     const firebaseConfig = {
-          apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
-          authDomain: "mymaps-dca38.firebaseapp.com",
-          databaseURL: "https://mymaps-dca38-default-rtdb.firebaseio.com",
-          projectId: "mymaps-dca38",
-          storageBucket: "mymaps-dca38.firebasestorage.app",
-          messagingSenderId: "673104844104",
-          appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
-          measurementId: "G-9CE457DN5W"
-        };
+      apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
+      authDomain: "mymaps-dca38.firebaseapp.com",
+      databaseURL: "https://mymaps-dca38-default-rtdb.firebaseio.com",
+      projectId: "mymaps-dca38",
+      storageBucket: "mymaps-dca38.firebasestorage.app",
+      messagingSenderId: "673104844104",
+      appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
+      measurementId: "G-9CE457DN5W"
+    };
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Relógio
     function atualizarRelogio() {
       const agora = new Date();
       document.getElementById('relogio').textContent = agora.toLocaleTimeString('pt-BR');
@@ -218,6 +217,7 @@
     const inputRe = document.getElementById('re');
     const inputGraduacao = document.getElementById('graduacao');
     const inputUsuario = document.getElementById('usuario');
+    const datalistPoliciais = document.getElementById('listaPoliciais');
 
     // Carregar Policiais do Firestore em tempo real
     db.collection('policiais').orderBy('usuario').onSnapshot((snapshot) => {
@@ -226,9 +226,20 @@
         policiaisCache.push({ id: doc.id, ...doc.data() });
       });
       renderizarTabelaPoliciais();
+      atualizarDatalistRE();
     });
 
-    // Autocompletar ao digitar o RE
+    function atualizarDatalistRE() {
+      datalistPoliciais.innerHTML = '';
+      policiaisCache.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p.re;
+        option.textContent = `${p.graduacao} ${p.usuario} (RE: ${p.re})`;
+        datalistPoliciais.appendChild(option);
+      });
+    }
+
+    // Autocompletar ao digitar ou selecionar o RE
     inputRe.addEventListener('input', () => {
       const reDigitado = inputRe.value.trim().toLowerCase();
       const policialEncontrado = policiaisCache.find(p => p.re.toLowerCase() === reDigitado);
@@ -242,7 +253,6 @@
       }
     });
 
-    // Modal Policiais
     function abrirModalPoliciais() {
       document.getElementById('modalPoliciais').classList.remove('hidden');
       document.getElementById('modalPoliciais').classList.add('flex');
@@ -296,8 +306,9 @@
     }
 
     window.excluirPolicial = async function(id) {
-      await db.collection('cautelas').doc(id).delete().catch(() => {});
-      await db.collection('policiais').doc(id).delete();
+      if (confirm('Deseja excluir este policial da base?')) {
+        await db.collection('policiais').doc(id).delete();
+      }
     };
 
     // Carregar Cautelas do Firestore em tempo real
