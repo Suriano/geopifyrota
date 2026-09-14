@@ -277,8 +277,8 @@
             margin-bottom: 10px;
         }
 
+        /* EFEITO DE PAINEL (SLIDE-UP / SLIDE-DOWN) */
         #painel-relatorio {
-            display: none;
             position: absolute;
             bottom: 0;
             left: 0;
@@ -293,7 +293,17 @@
             box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
             border-top-left-radius: 12px;
             border-top-right-radius: 12px;
+            
+            /* Propriedades de Transição */
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            visibility: hidden;
         }
+        #painel-relatorio.ativo {
+            transform: translateY(0);
+            visibility: visible;
+        }
+
         .relatorio-header {
             display: flex;
             justify-content: space-between;
@@ -441,7 +451,7 @@
         </div>
     </div>
 
-    <!-- Painel Formal de Exibição (Flutuante na parte inferior) -->
+    <!-- Painel Formal de Exibição (Flutuante na parte inferior com efeito de transição) -->
     <div id="painel-relatorio">
         <div class="relatorio-header">
             <strong>HISTÓRICO:</strong>
@@ -754,7 +764,7 @@
                 registrosTrajeto,
                 pontosDeMelhoria,
                 textoRelatorioPronto,
-                temRelatorioVisivel: painelRelatorio.style.display === "block",
+                temRelatorioVisivel: painelRelatorio.classList.contains('ativo'),
                 isGravando,
                 segundosGravados
             };
@@ -818,7 +828,9 @@
             }
 
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
-            painelRelatorio.style.display = "block";
+            
+            // Ativa o painel aplicando a classe que executa o efeito de painel/slide-up
+            painelRelatorio.classList.add('ativo');
 
             if (audiosGravados.length > 0) {
                 containerAudiosSalvos.style.display = "block";
@@ -946,7 +958,6 @@
                                     inputDestino.value = props.formatted;
                                     sugestoesDestino.style.display = 'none';
                                     
-                                    // CORREÇÃO: GeoJSON usa [longitude, latitude]. A API espera lat, lon separadas por vírgula.
                                     const destLon = feature.geometry.coordinates[0];
                                     const destLat = feature.geometry.coordinates[1];
 
@@ -1087,7 +1098,7 @@
 
                 if (estado.temRelatorioVisivel && textoRelatorioPronto) {
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
-                    painelRelatorio.style.display = "block";
+                    painelRelatorio.classList.add('ativo');
                 }
 
                 const coordsValidas = registrosTrajeto.map(i => i.coordenadas).filter(c => c);
@@ -1226,8 +1237,9 @@
             falarTexto("Relatório gerado e salvo.");
         });
 
+        // Efeito de recolhimento suave ao fechar o painel
         btnFecharPainel.addEventListener('click', function() {
-            painelRelatorio.style.display = "none";
+            painelRelatorio.classList.remove('ativo');
             salvarEstadoLocal();
         });
 
@@ -1246,7 +1258,7 @@
                 ultimaRuaSalva = "";
                 textoRelatorioPronto = "";
                 textoRelatorioVisivel.textContent = "";
-                painelRelatorio.style.display = "none";
+                painelRelatorio.classList.remove('ativo');
                 btnGravar.textContent = "🔴 GRAVAR";
                 btnGravar.classList.remove('gravando');
 
