@@ -15,12 +15,34 @@
 
   <style>
     @media print {
+      body > *:not(#modalRelatorio) {
+        display: none !important;
+      }
+      #modalRelatorio {
+        position: static !important;
+        display: block !important;
+        width: 100% !important;
+        height: auto !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        inset: auto !important;
+      }
+      #modalRelatorio > div {
+        max-width: 100% !important;
+        max-height: none !important;
+        box-shadow: none !important;
+        border: none !important;
+      }
       .no-print {
         display: none !important;
       }
       body {
         background: white !important;
         padding: 0 !important;
+        margin: 0 !important;
       }
     }
   </style>
