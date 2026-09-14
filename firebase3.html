@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GPS RPM & QTH Patrulhamento</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.css" />
+
+    <style>
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; font-family: Arial, sans-serif;
+            touch-action: manipulation; background-color: #2c3e50;
+        }
+
+        /* TELA DE LOGIN RESTRITA */
+        #login-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #2c3e50; display: flex; justify-content: center;
+            align-items: center; z-index: 9999;
+        }
+        .login-card {
+            background: #ffffff; padding: 25px; border-radius: 10px;
+            width: 90%; max-width: 350px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .login-card h2 { margin-top: 0; color: #2c3e50; font-size: 18px; margin-bottom: 5px; }
+        .login-card .subtitulo { font-size: 11px; color: #7f8c8d; margin-bottom: 15px; display: block; }
+        .login-card input, .login-card select {
+            width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 14px; text-transform: uppercase;
+        }
+        .login-card button {
+            width: 100%; background-color: #2980b9; color: white; border: none;
+            padding: 10px; font-size: 14px; border-radius: 6px; font-weight: bold; cursor: pointer;
+        }
+        .login-card button:active { filter: brightness(0.85); }
+        #login-erro { color: #e74c3c; font-size: 12px; margin-top: 10px; display: none; }
+
+        /* APLICAÇÃO PRINCIPAL */
+        #app-container {
+            display: none; /* Inicialmente oculto até logar */
+            flex-direction: column; height: 100vh; height: 100dvh; width: 100vw;
+        }
+
+        #header {
+            padding: 6px 10px; background-color: #2c3e50; color: white;
+            text-align: center; flex-shrink: 0; border-bottom: 1px solid #34495e;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #header h2 { margin: 0; font-size: 14px; }
+        #header small { font-size: 10px; color: #bdc3c7; }
+        #btn-logout { background-color: #e74c3c; padding: 4px 8px; font-size: 10px; border-radius: 4px; }
+
+        #controls {
+            padding: 6px; background-color: #f1f2f6; text-align: center;
+            display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;
+            border-bottom: 1px solid #dcdde1; align-items: center; flex-shrink: 0;
+        }
+
+        button, .autocomplete-container input {
+            background-color: #34495e; color: white; border: none;
+            padding: 8px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; font-weight: bold;
+        }
+        button:active { filter: brightness(0.85); }
+        
+        #btn-voz-container { position: relative; display: inline-block; }
+        #input-destino {
+            background-color: #e67e22; color: white; width: 130px; padding: 8px 10px;
+            font-size: 12px; font-weight: bold; border-radius: 6px; outline: none; border: none;
+        }
+        #input-destino::placeholder { color: white; opacity: 0.9; }
+        #sugestoes-destino {
+            position: absolute; top: 100%; left: 0; right: 0; background: white;
+            border: 1px solid #ccc; border-radius: 0 0 6px 6px; z-index: 2000;
+            max-height: 180px; overflow-y: auto; text-align: left; display: none;
+            box-shadow: 0px 4px 6px rgba(0,0,0,0.2);
+        }
+        .sugestao-item { padding: 10px; font-size: 11px; color: #333; border-bottom: 1px solid #eee; cursor: pointer; text-transform: uppercase; }
+        .sugestao-item:hover { background-color: #f1f2f6; }
+
+        #btn-localizacao { background-color: #34495e; }
+        #btn-gravar { background-color: #c0392b; }
+        #btn-gravar.gravando { background-color: #7f8c8d; animation: pulsar 1.5s infinite; }
+        #btn-audio { background-color: #8e44ad; }
+        #btn-audio.gravando-audio { background-color: #e74c3c; animation: pulsar 1.5s infinite; }
+        #btn-marcar { background-color: #f39c12; }
+        #btn-importar { background-color: #2980b9; }
+        #btn-limpar { background-color: #7f8c8d; }
+
+        @keyframes pulsar { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        #instructions {
+            padding: 6px; text-align: center; font-weight: bold; color: #2c3e50;
+            background-color: #ecf0f1; border-bottom: 1px solid #bdc3c7; font-size: 11px;
+            flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        #modal-marcar {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 3000; justify-content: center; align-items: center;
+        }
+        .modal-conteudo {
+            background: #ffffff; width: 90%; max-width: 400px; padding: 15px;
+            border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); text-transform: uppercase;
+        }
+        .modal-conteudo h3 { margin-top: 0; font-size: 13px; color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+        .atalhos-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+        .btn-atalho {
+            background-color: #34495e; color: white; font-size: 10px; padding: 8px;
+            border-radius: 4px; border: none; cursor: pointer; font-weight: bold; text-align: center;
+        }
+        .btn-atalho:active { background-color: #2c3e50; }
+        
+        .textarea-container { position: relative; margin-bottom: 10px; }
+        #textarea-ocorrencia {
+            width: 100%; height: 80px; font-family: Arial, sans-serif; font-size: 11px;
+            text-transform: uppercase; padding: 6px; padding-right: 40px; border: 1px solid #ccc;
+            border-radius: 4px; resize: none;
+        }
+        #btn-transcrever-modal {
+            position: absolute; bottom: 8px; right: 6px; background-color: #8e44ad;
+            color: white; border: none; padding: 6px 8px; font-size: 14px; border-radius: 4px; cursor: pointer;
+        }
+        #btn-transcrever-modal.ouvindo { background-color: #e74c3c; animation: pulsar 1.5s infinite; }
+
+        .modal-acoes { display: flex; justify-content: flex-end; gap: 6px; }
+        #btn-modal-ok { background-color: #27ae60; color: white; padding: 6px 12px; border-radius: 4px; }
+        #btn-modal-cancelar { background-color: #e74c3c; color: white; padding: 6px 12px; border-radius: 4px; }
+
+        #modal-gerar-relatorio {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 3500; justify-content: center; align-items: center;
+        }
+        #textarea-relatorio-modal {
+            width: 100%; height: 180px; font-family: Arial, sans-serif; font-size: 11px;
+            text-transform: uppercase; padding: 8px; box-sizing: border-box; border: 1px solid #34495e;
+            border-radius: 4px; resize: vertical; margin-bottom: 10px;
+        }
+
+        #painel-relatorio {
+            display: none; position: absolute; bottom: 0; left: 0; right: 0; max-height: 50vh;
+            background: #ffffff; border-top: 3px solid #2c3e50; padding: 12px; overflow-y: auto;
+            font-size: 12px; z-index: 1500; box-shadow: 0 -4px 10px rgba(0,0,0,0.3);
+            border-top-left-radius: 12px; border-top-right-radius: 12px;
+        }
+        .relatorio-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+        .relatorio-acoes { display: flex; gap: 5px; }
+        #btn-whatsapp { background-color: #25d366; color: white; padding: 6px 10px; font-size: 11px; border-radius: 4px; }
+        #btn-fechar-painel { background-color: #e74c3c; color: white; padding: 6px 10px; font-size: 11px; border-radius: 4px; }
+        #btn-gerar-relatorio-modal { background-color: #27ae60; color: white; padding: 6px 10px; font-size: 11px; border-radius: 4px; }
+        
+        #btn-abrir-painel {
+            display: none; position: absolute; bottom: 15px; right: 15px; background-color: #2c3e50;
+            color: white; padding: 10px 14px; font-size: 12px; border-radius: 30px; z-index: 1400;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 2px solid white; font-weight: bold;
+        }
+
+        .relatorio-conteudo { white-space: pre-wrap; color: #222; font-family: Arial, sans-serif; line-height: 1.4; text-transform: uppercase; }
+        
+        .lista-audios { margin-top: 10px; border-top: 1px dashed #ccc; padding-top: 8px; }
+        .audio-item { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; background: #f1f2f6; padding: 6px; border-radius: 4px; gap: 5px; }
+        .audio-item audio { height: 30px; flex: 1; min-width: 120px; }
+        .audio-acoes { display: flex; gap: 4px; }
+        .btn-audio-acao { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: none; color: white; cursor: pointer; font-weight: bold; }
+        .btn-salvar-audio { background-color: #27ae60; }
+        .btn-excluir-audio { background-color: #e74c3c; }
+
+        #map { flex: 1; width: 100%; touch-action: none; }
+        .viatura-icon { font-size: 24px; text-align: center; line-height: 24px; }
+    </style>
+</head>
+<body>
+
+    <!-- TELA DE LOGIN RESTRITA COM SELEÇÃO DE VIATURA -->
+    <div id="login-screen">
+        <div class="login-card">
+            <h2>PATRULHAMENTO OPERACIONAL</h2>
+            <span class="subtitulo">Acesso restrito a usuários autorizados</span>
+            <input type="email" id="login-email" placeholder="E-MAIL" autocomplete="email">
+            <input type="password" id="login-senha" placeholder="SENHA" autocomplete="current-password">
+            <input type="text" id="login-viatura" placeholder="PREFIXO DA VIATURA (EX: M-06123)" autocomplete="off">
+            <button id="btn-entrar">ENTRAR</button>
+            <div id="login-erro"></div>
+        </div>
+    </div>
+
+    <!-- APLICAÇÃO PRINCIPAL -->
+    <div id="app-container">
+        <div id="header">
+            <div>
+                <h2>RELATÓRIO - <span id="lbl-viatura-ativa" style="color: #f39c12;">...</span></h2>
+                <small>ACESSOS: <span id="contador-visitas">CARREGANDO...</span></small>
+            </div>
+            <button id="btn-logout">SAIR</button>
+        </div>
+
+        <div id="controls">
+            <button id="btn-localizacao">📍 LOCAL</button>
+            
+            <div id="btn-voz-container">
+                <input type="text" id="input-destino" placeholder="🔍 DESTINO..." autocomplete="off">
+                <div id="sugestoes-destino"></div>
+            </div>
+
+            <button id="btn-gravar">🔴 GRAVAR</button>
+            <button id="btn-audio">🎙️ ÁUDIO</button>
+            <button id="btn-marcar">⭐ MARCAR</button>
+            <button id="btn-importar">📂 ABRIR</button>
+            <button id="btn-limpar">🧹 LIMPAR</button>
+            <input type="file" id="input-json" style="display: none;" />
+        </div>
+        
+        <div id="instructions">OBTENDO SUA LOCALIZAÇÃO ATUAL...</div>
+
+        <div id="map"></div>
+    </div>
+
+    <!-- Botão Flutuante para Abrir o Painel Novamente -->
+    <button id="btn-abrir-painel">📋 HISTÓRICO</button>
+
+    <!-- Modal Personalizado de Marcação -->
+    <div id="modal-marcar">
+        <div class="modal-conteudo">
+            <h3 id="modal-titulo-local">MARCAR OCORRÊNCIA</h3>
+            <div class="atalhos-grid">
+                <button type="button" class="btn-atalho" onclick="inserirAtalho('ABORDAGEM REALIZADA')">ABORDAGEM REALIZADA</button>
+                <button type="button" class="btn-atalho" onclick="inserirAtalho('PATRULHAMENTO')">PATRULHAMENTO</button>
+                <button type="button" class="btn-atalho" onclick="inserirAtalho('ATENDIMENTO DO TALÃO')">ATENDIMENTO DO TALÃO</button>
+                <button type="button" class="btn-atalho" onclick="inserirAtalho('RONDA')">RONDA</button>
+            </div>
+            <div class="textarea-container">
+                <textarea id="textarea-ocorrencia" placeholder="DIGITE OU SELECIONE A OPÇÃO ACIMA..."></textarea>
+                <button type="button" id="btn-transcrever-modal" title="Transcrever voz para texto">🎙️</button>
+            </div>
+            <div class="modal-acoes">
+                <button type="button" id="btn-modal-cancelar">CANCELAR</button>
+                <button type="button" id="btn-modal-ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Gerar, Editar e Salvar Relatório -->
+    <div id="modal-gerar-relatorio">
+        <div class="modal-conteudo" style="max-width: 450px;">
+            <h3>EDITAR / GERAR RELATÓRIO</h3>
+            <textarea id="textarea-relatorio-modal"></textarea>
+            <div class="modal-acoes">
+                <button type="button" id="btn-modal-relatorio-cancelar" style="background-color: #7f8c8d; color: white; padding: 6px 12px; border-radius: 4px;">FECHAR</button>
+                <button type="button" id="btn-modal-relatorio-salvar" style="background-color: #27ae60; color: white; padding: 6px 12px; border-radius: 4px;">💾 SALVAR E BAIXAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Painel Formal de Exibição -->
+    <div id="painel-relatorio">
+        <div class="relatorio-header">
+            <strong>HISTÓRICO DA VIATURA:</strong>
+            <div class="relatorio-acoes">
+                <button id="btn-gerar-relatorio-modal">✏️ EDITAR / GERAR</button>
+                <button id="btn-whatsapp">💬 WPP</button>
+                <button id="btn-fechar-painel">❌</button>
+            </div>
+        </div>
+        <div id="texto-relatorio-visivel" class="relatorio-conteudo"></div>
+        <div id="container-audios-salvos" class="lista-audios" style="display:none;">
+            <strong>ÁUDIOS GRAVADOS:</strong>
+            <div id="lista-audios-elementos"></div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tomickigrzegorz/leaflet-rotate@latest/dist/leaflet-rotate.min.js"></script>
+
+    <!-- Firebase SDKs (Modular v10) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+        import { getDatabase, ref, set, onValue, off } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyBWUxSMMrCP-GXsFLGHN5vj6T-KJ9ld6lA",
+          authDomain: "mymaps-dca38.firebaseapp.com",
+          databaseURL: "https://mymaps-dca38-default-rtdb.firebaseio.com",
+          projectId: "mymaps-dca38",
+          storageBucket: "mymaps-dca38.firebasestorage.app",
+          messagingSenderId: "673104844104",
+          appId: "1:673104844104:web:1df96b1135b2f25c5fcf7d",
+          measurementId: "G-9CE457DN5W"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+        const analytics = getAnalytics(app);
+
+        const loginScreen = document.getElementById('login-screen');
+        const appContainer = document.getElementById('app-container');
+        const inputEmail = document.getElementById('login-email');
+        const inputSenha = document.getElementById('login-senha');
+        const inputViaturaLogin = document.getElementById('login-viatura');
+        const btnEntrar = document.getElementById('btn-entrar');
+        const btnLogout = document.getElementById('btn-logout');
+        const loginErro = document.getElementById('login-erro');
+        const inputDestino = document.getElementById('input-destino');
+        const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
+        const painelRelatorio = document.getElementById('painel-relatorio');
+        const btnAbrirPainel = document.getElementById('btn-abrir-painel');
+        const lblViaturaAtiva = document.getElementById('lbl-viatura-ativa');
+
+        let viaturaAtual = localStorage.getItem('gps_rpm_viatura') || '';
+        let unsubscribeDestino = null;
+        let unsubscribeRelatorio = null;
+
+        if (viaturaAtual) {
+            inputViaturaLogin.value = viaturaAtual;
+        }
+
+        btnEntrar.addEventListener('click', () => {
+            const email = inputEmail.value.trim();
+            const senha = inputSenha.value.trim();
+            const viatura = inputViaturaLogin.value.trim().toUpperCase();
+            loginErro.style.display = 'none';
+
+            if (!email || !senha || !viatura) {
+                loginErro.textContent = "Preencha e-mail, senha e o prefixo da viatura.";
+                loginErro.style.display = 'block';
+                return;
+            }
+
+            signInWithEmailAndPassword(auth, email, senha)
+                .then(() => {
+                    viaturaAtual = viatura;
+                    localStorage.setItem('gps_rpm_viatura', viaturaAtual);
+                    lblViaturaAtiva.textContent = viaturaAtual;
+                    iniciarListenersFirebase(viaturaAtual);
+                })
+                .catch((error) => {
+                    loginErro.textContent = "Acesso negado: E-mail ou senha incorretos.";
+                    loginErro.style.display = 'block';
+                });
+        });
+
+        btnLogout.addEventListener('click', () => {
+            signOut(auth).then(() => {
+                localStorage.removeItem('gps_rpm_viatura');
+                location.reload(); 
+            });
+        });
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                if (!viaturaAtual) {
+                    viaturaAtual = prompt("Informe o prefixo da sua viatura (Ex: M-06123):") || "VIATURA_GERAL";
+                    viaturaAtual = viaturaAtual.toUpperCase();
+                    localStorage.setItem('gps_rpm_viatura', viaturaAtual);
+                }
+                lblViaturaAtiva.textContent = viaturaAtual;
+                loginScreen.style.display = 'none';
+                appContainer.style.display = 'flex';
+                iniciarListenersFirebase(viaturaAtual);
+                setTimeout(() => { if (typeof map !== 'undefined') map.invalidateSize(); }, 300);
+            } else {
+                loginScreen.style.display = 'flex';
+                appContainer.style.display = 'none';
+            }
+        });
+
+        // =========================================================
+        // SINCRONIZAÇÃO EM TEMPO REAL ISOLADA POR VIATURA (FIREBASE)
+        // =========================================================
+        let atualizandoRemotamente = false;
+
+        // Sincronizar destino enquanto o usuário digita (específico da viatura)
+        inputDestino.addEventListener('input', () => {
+            if (atualizandoRemotamente || !viaturaAtual) return;
+            const valorDigitado = inputDestino.value;
+            set(ref(db, `viaturas/${viaturaAtual}/sincronizacao/destino`), valorDigitado);
+        });
+
+        window.sincronizarRelatorioFirebase = function(texto) {
+            if (!viaturaAtual) return;
+            set(ref(db, `viaturas/${viaturaAtual}/sincronizacao/relatorio`), texto);
+        };
+
+        function iniciarListenersFirebase(viatura) {
+            const refDestino = ref(db, `viaturas/${viatura}/sincronizacao/destino`);
+            const refRelatorio = ref(db, `viaturas/${viatura}/sincronizacao/relatorio`);
+
+            onValue(refDestino, (snapshot) => {
+                const valorRemoto = snapshot.val();
+                if (valorRemoto !== null && valorRemoto !== inputDestino.value) {
+                    atualizandoRemotamente = true;
+                    inputDestino.value = valorRemoto;
+                    atualizandoRemotamente = false;
+                }
+            });
+
+            onValue(refRelatorio, (snapshot) => {
+                const relatorioRemoto = snapshot.val();
+                if (relatorioRemoto !== null && relatorioRemoto !== textoRelatorioVisivel.textContent) {
+                    textoRelatorioVisivel.textContent = relatorioRemoto;
+                    if (relatorioRemoto.trim() !== "") {
+                        painelRelatorio.style.display = "block";
+                        btnAbrirPainel.style.display = "none";
+                    }
+                }
+            });
+        }
+    </script>
+
+    <!-- SCRIPT ORIGINAL DO APLICATIVO DE MAPA E ROTAS -->
+    <script>
+        const apiKey = "daca396975f54c2d95e7c4c7d25e86ec";
+
+        const map = L.map('map', {
+            rotate: true,
+            touchRotate: true,
+            rotateControl: { position: "topright", behavior: "reset" }
+        }).setView([-23.5505, -46.6333], 13);
+
+        L.tileLayer(`https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${apiKey}`, {
+            attribution: 'Powered by Geoapify | © OpenStreetMap contributors',
+            maxZoom: 20,
+            id: 'osm-carto'
+        }).addTo(map);
+
+        let origem = null;
+        let markerOrigem = null;
+        let markerDestino = null;
+        let routingLayer = null;
+
+        let isGravando = false;
+        let watchId = null;
+        let tempoGravacaoInterval = null;
+        let segundosGravados = 0;
+        let wakeLock = null;
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isGravandoAudio = false;
+        let audiosGravados = []; 
+
+        const distanciaMinimaMetros = 100; 
+        let ultimaCoordenadaSalva = null;
+        let ultimaRuaSalva = "";
+
+        let registrosTrajeto = [];
+        let pontosDeMelhoria = [];
+        let trackLayer = null;
+        let marcadoresMelhoriaLayers = [];
+        let ruaAtualNome = "AGUARDANDO...";
+        let ultimaLat = null;
+        let ultimaLon = null;
+        let textoRelatorioPronto = "";
+
+        const instructionsDiv = document.getElementById('instructions');
+        const btnLocalizacao = document.getElementById('btn-localizacao');
+        const btnGravar = document.getElementById('btn-gravar');
+        const btnAudio = document.getElementById('btn-audio');
+        const btnMarcar = document.getElementById('btn-marcar');
+        const btnImportar = document.getElementById('btn-importar');
+        const btnLimpar = document.getElementById('btn-limpar');
+        const btnWhatsapp = document.getElementById('btn-whatsapp');
+        const btnGerarRelatorioModal = document.getElementById('btn-gerar-relatorio-modal');
+        const btnFecharPainel = document.getElementById('btn-fechar-painel');
+        const btnAbrirPainel = document.getElementById('btn-abrir-painel');
+        const inputJson = document.getElementById('input-json');
+        const painelRelatorio = document.getElementById('painel-relatorio');
+        const textoRelatorioVisivel = document.getElementById('texto-relatorio-visivel');
+        const containerAudiosSalvos = document.getElementById('container-audios-salvos');
+        const listaAudiosElementos = document.getElementById('lista-audios-elementos');
+        
+        const inputDestino = document.getElementById('input-destino');
+        const sugestoesDestino = document.getElementById('sugestoes-destino');
+
+        const modalMarcar = document.getElementById('modal-marcar');
+        const modalTituloLocal = document.getElementById('modal-titulo-local');
+        const textareaOcorrencia = document.getElementById('textarea-ocorrencia');
+        const btnTranscreverModal = document.getElementById('btn-transcrever-modal');
+        const btnModalOk = document.getElementById('btn-modal-ok');
+        const btnModalCancelar = document.getElementById('btn-modal-cancelar');
+
+        const modalGerarRelatorio = document.getElementById('modal-gerar-relatorio');
+        const textareaRelatorioModal = document.getElementById('textarea-relatorio-modal');
+        const btnModalRelatorioSalvar = document.getElementById('btn-modal-relatorio-salvar');
+        const btnModalRelatorioCancelar = document.getElementById('btn-modal-relatorio-cancelar');
+
+        function inserirAtalho(texto) {
+            const atual = textareaOcorrencia.value.trim();
+            textareaOcorrencia.value = atual ? atual + " - " + texto : texto;
+            textareaOcorrencia.focus();
+        }
+
+        let recognitionModal = null;
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognitionModal = new SpeechRecognition();
+            recognitionModal.lang = 'pt-BR';
+            recognitionModal.continuous = false;
+            recognitionModal.interimResults = false;
+
+            recognitionModal.onresult = (event) => {
+                const transcricao = event.results[0][0].transcript.toUpperCase();
+                const atual = textareaOcorrencia.value.trim();
+                textareaOcorrencia.value = atual ? atual + " " + transcricao : transcricao;
+                btnTranscreverModal.classList.remove('ouvindo');
+                btnTranscreverModal.textContent = "🎙️";
+                textareaOcorrencia.focus();
+            };
+            recognitionModal.onerror = () => { btnTranscreverModal.classList.remove('ouvindo'); btnTranscreverModal.textContent = "🎙️"; };
+            recognitionModal.onend = () => { btnTranscreverModal.classList.remove('ouvindo'); btnTranscreverModal.textContent = "🎙️"; };
+        }
+
+        btnTranscreverModal.addEventListener('click', () => {
+            if (!recognitionModal) { alert("Navegador não suporta voz."); return; }
+            if (btnTranscreverModal.classList.contains('ouvindo')) {
+                recognitionModal.stop();
+            } else {
+                recognitionModal.start();
+                btnTranscreverModal.classList.add('ouvindo');
+                btnTranscreverModal.textContent = "⏹️";
+            }
+        });
+
+        var iconePolicialEmoji = L.divIcon({ className: 'policial-marker-label', html: '👮‍♂️', iconSize: [24, 24], iconAnchor: [12, 24], popupAnchor: [0, -20] });
+
+        function styleFeature(feature) {
+            var corSetor = (feature.properties && feature.properties.fill) ? feature.properties.fill : '#3388ff';
+            var opacidadePreenchimento = (feature.properties && feature.properties['fill-opacity'] !== undefined) ? feature.properties['fill-opacity'] : 0.45;
+            return { color: corSetor, weight: 2.5, fillColor: corSetor, fillOpacity: opacidadePreenchimento };
+        }
+
+        function onEachFeature(feature, layer) {
+            if (feature.properties) {
+                let nome = feature.properties.name || feature.properties.Name || 'Setor';
+                let descricao = feature.properties.description || '';
+                if (typeof descricao === 'object' && descricao.value) descricao = descricao.value;
+                let conteudoPopup = `<b>${nome}</b>`;
+                if (descricao && typeof descricao === 'string' && descricao.trim() !== '') conteudoPopup += `<br><span style="color: #555;">${descricao}</span>`;
+                layer.bindPopup(conteudoPopup);
+            }
+        }
+
+        var groupLayer = new L.FeatureGroup();
+        var fontesGeoJson = [
+          { nome: "Setores 1ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(2).json' },
+          { nome: "Setores 3ª Cia 6⁰BPM/M", url: 'https://raw.githubusercontent.com/Suriano/geopifyrota/refs/heads/main/Untitled%20(1).json' }   
+        ];
+
+        function carregarArquivo(fonte) {
+            return fetch(fonte.url)
+                .then(res => res.json())
+                .then(data => {
+                    var camadaGeoJson = L.geoJSON(data, { style: styleFeature, onEachFeature: onEachFeature });
+                    camadaGeoJson.addTo(map);
+                    groupLayer.addLayer(camadaGeoJson);
+                }).catch(error => console.error(error));
+        }
+
+        function resetarZoom() { if (groupLayer.getLayers().length > 0) map.fitBounds(groupLayer.getBounds(), { padding: [50, 50] }); }
+        Promise.all(fontesGeoJson.map(fonte => carregarArquivo(fonte))).then(() => resetarZoom());
+
+        function criarIconeViatura() { return L.divIcon({ className: 'viatura-icon', html: '🚔', iconSize: [30, 30], iconAnchor: [15, 15] }); }
+
+        function falarTexto(texto) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'pt-BR';
+            window.speechSynthesis.speak(utterance);
+        }
+
+        async function solicitarWakeLock() {
+            if ('wakeLock' in navigator) {
+                try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+            }
+        }
+
+        async function liberarWakeLock() {
+            if (wakeLock !== null) { try { await wakeLock.release(); wakeLock = null; } catch (err) {} }
+        }
+
+        function emitirSomSalvamento() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch (e) {}
+        }
+
+        function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+        }
+
+        function obterNomeRuaPorCoord(lat, lon, callback) {
+            const url = `https://api.geoapify.com/v1/geocode/reverse?lat=${lat}&lon=${lon}&apiKey=${apiKey}&lang=pt`;
+            fetch(url)
+                .then(res => res.json())
+                .then(result => {
+                    let nomeFormatado = "VIA NÃO IDENTIFICADA";
+                    if (result.features && result.features.length > 0) {
+                        const props = result.features[0].properties;
+                        const rua = props.street || props.name || "VIA SEM NOME";
+                        const numero = props.housenumber ? `, ${props.housenumber}` : "";
+                        const bairro = props.suburb || props.city || "";
+                        nomeFormatado = bairro ? `${rua}${numero} (${bairro})` : `${rua}${numero}`;
+                    }
+                    if (callback) callback(nomeFormatado.toUpperCase());
+                })
+                .catch(() => { if (callback) callback("VIA NÃO IDENTIFICADA"); });
+        }
+
+        function salvarEstadoLocal() {
+            const estado = { registrosTrajeto, pontosDeMelhoria, textoRelatorioPronto, temRelatorioVisivel: painelRelatorio.style.display === "block", isGravando, segundosGravados };
+            localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
+        }
+
+        function atualizarPainelRelatorioDinamico(forcarGeracao = false, novoPonto = null, novoPontoMelhoria = null) {
+            if (forcarGeracao || !textoRelatorioPronto || textoRelatorioPronto.trim() === "") {
+                let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL - VIATURA: ${localStorage.getItem('gps_rpm_viatura') || 'GERAL'}\n`;
+                relatorioFormal += `DATA: ${new Date().toLocaleDateString('pt-BR')} | TEMPO: ${isGravando ? formatarTempo(segundosGravados) : 'CONCLUÍDO'}\n\n`;
+                relatorioFormal += `HISTÓRICO DE OPERAÇÕES:\n`;
+                let contadorItem = 1;
+                if (registrosTrajeto.length > 0) {
+                    registrosTrajeto.forEach((ponto) => {
+                        relatorioFormal += `${contadorItem}. ÀS ${ponto.hora} - LOCAL: ${ponto.rua.toUpperCase()}.\n`;
+                        contadorItem++;
+                    });
+                } else {
+                    relatorioFormal += `1. NENHUM REGISTRO INFORMADO AINDA.\n`;
+                }
+                if (pontosDeMelhoria.length > 0) {
+                    relatorioFormal += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                    pontosDeMelhoria.forEach((pm) => {
+                        relatorioFormal += `• ÀS ${pm.hora} ${pm.comentario.toUpperCase()} ${pm.rua.toUpperCase()};\n`;
+                    });
+                }
+                textoRelatorioPronto = relatorioFormal;
+            } else {
+                if (novoPonto) {
+                    if (textoRelatorioPronto.includes("1. NENHUM REGISTRO INFORMADO AINDA.")) {
+                        textoRelatorioPronto = textoRelatorioPronto.replace("1. NENHUM REGISTRO INFORMADO AINDA.\n", "");
+                    }
+                    let linhaTrajeto = `${registrosTrajeto.length}. ÀS ${novoPonto.hora} - LOCAL: ${novoPonto.rua.toUpperCase()}.\n`;
+                    if (textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
+                        let partes = textoRelatorioPronto.split("ALTERAÇÕES / PONTOS MARCADOS:");
+                        textoRelatorioPronto = partes[0] + linhaTrajeto + "\nALTERAÇÕES / PONTOS MARCADOS:" + partes[1];
+                    } else {
+                        textoRelatorioPronto += linhaTrajeto;
+                    }
+                }
+                if (novoPontoMelhoria) {
+                    let novaLinha = `• ÀS ${novoPontoMelhoria.hora} ${novoPontoMelhoria.comentario.toUpperCase()} ${novoPontoMelhoria.rua.toUpperCase()};\n`;
+                    if (!textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
+                        textoRelatorioPronto += `\nALTERAÇÕES / PONTOS MARCADOS:\n`;
+                    }
+                    textoRelatorioPronto += novaLinha;
+                }
+            }
+
+            textoRelatorioVisivel.textContent = textoRelatorioPronto;
+            painelRelatorio.style.display = "block";
+            btnAbrirPainel.style.display = "none";
+
+            // Sincronizar via Firebase Realtime Database isolado pela viatura
+            if (typeof window.sincronizarRelatorioFirebase === 'function') {
+                window.sincronizarRelatorioFirebase(textoRelatorioPronto);
+            }
+
+            if (audiosGravados.length > 0) {
+                containerAudiosSalvos.style.display = "block";
+                listaAudiosElementos.innerHTML = "";
+                audiosGravados.forEach((audioObj, index) => {
+                    let divItem = document.createElement('div');
+                    divItem.className = 'audio-item';
+                    let audioElement = document.createElement('audio');
+                    audioElement.controls = true;
+                    audioElement.src = audioObj.url;
+                    
+                    let acoesDiv = document.createElement('div');
+                    acoesDiv.className = 'audio-acoes';
+                    let btnSalvar = document.createElement('button');
+                    btnSalvar.className = 'btn-audio-acao btn-salvar-audio';
+                    btnSalvar.textContent = '💾';
+                    btnSalvar.onclick = () => { let a = document.createElement('a'); a.href = audioObj.url; a.download = `audio_${index+1}.webm`; a.click(); };
+                    
+                    let btnExcluir = document.createElement('button');
+                    btnExcluir.className = 'btn-audio-acao btn-excluir-audio';
+                    btnExcluir.textContent = '🗑️';
+                    btnExcluir.onclick = () => { audiosGravados.splice(index, 1); atualizarPainelRelatorioDinamico(true); };
+
+                    acoesDiv.appendChild(btnSalvar);
+                    acoesDiv.appendChild(btnExcluir);
+                    divItem.appendChild(audioElement);
+                    divItem.appendChild(acoesDiv);
+                    listaAudiosElementos.appendChild(divItem);
+                });
+            } else {
+                containerAudiosSalvos.style.display = "none";
+                listaAudiosElementos.innerHTML = "";
+            }
+            salvarEstadoLocal();
+        }
+
+        function calcularESobrescreverRota(destinoLat, destinoLon, enderecoFormatado) {
+            if (ultimaLat === null || ultimaLon === null) { alert("Aguarde a localização."); return; }
+            const urlRouting = `https://api.geoapify.com/v1/routing?waypoints=${ultimaLat},${ultimaLon}|${destinoLat},${destinoLon}&mode=drive&apiKey=${apiKey}`;
+            instructionsDiv.innerHTML = `🔄 CALCULANDO ROTA...`;
+
+            fetch(urlRouting)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.features && data.features.length > 0) {
+                        if (routingLayer) map.removeLayer(routingLayer);
+                        routingLayer = L.geoJSON(data.features[0], { style: { color: '#3498db', weight: 6, opacity: 0.8 } }).addTo(map);
+                        map.fitBounds(routingLayer.getBounds(), { padding: [50, 50] });
+                        if (markerDestino) map.removeLayer(markerDestino);
+                        markerDestino = L.marker([destinoLat, destinoLon]).addTo(map).bindPopup(`<b>DESTINO:</b><br>${enderecoFormatado}`).openPopup();
+                        instructionsDiv.innerHTML = `🎯 <b>ROTA:</b> ${enderecoFormatado.toUpperCase()}`;
+                        falarTexto("Rota calculada.");
+                    }
+                });
+        }
+
+        let timeoutAutocomplete = null;
+        inputDestino.addEventListener('input', function() {
+            const query = this.value.trim();
+            clearTimeout(timeoutAutocomplete);
+            if (query.length < 3) { sugestoesDestino.style.display = 'none'; return; }
+            timeoutAutocomplete = setTimeout(() => {
+                let biasParam = ultimaLat && ultimaLon ? `&bias=proximity:${ultimaLon},${ultimaLat}` : '';
+                fetch(`https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=5&lang=pt${biasParam}&apiKey=${apiKey}`)
+                    .then(res => res.json())
+                    .then(data => {
+                        sugestoesDestino.innerHTML = '';
+                        if (data.features && data.features.length > 0) {
+                            data.features.forEach(feature => {
+                                let div = document.createElement('div');
+                                div.className = 'sugestao-item';
+                                div.textContent = feature.properties.formatted;
+                                div.addEventListener('click', () => {
+                                    inputDestino.value = feature.properties.formatted;
+                                    sugestoesDestino.style.display = 'none';
+                                    calcularESobrescreverRota(feature.geometry.coordinates[1], feature.geometry.coordinates[0], feature.properties.formatted);
+                                });
+                                sugestoesDestino.appendChild(div);
+                            });
+                            sugestoesDestino.style.display = 'block';
+                        }
+                    });
+            }, 300);
+        });
+
+        document.addEventListener('click', (e) => { if (!document.getElementById('btn-voz-container').contains(e.target)) sugestoesDestino.style.display = 'none'; });
+
+        async function atualizarContadorGlobal() {
+            try {
+                const res = await fetch('https://api.countapi.xyz/hit/gps-rpm-patrulhamento/visitas');
+                const data = await res.json();
+                document.getElementById('contador-visitas').textContent = data.value || 1;
+            } catch (e) {
+                document.getElementById('contador-visitas').textContent = '1';
+            }
+        }
+
+        function centralizarNaMinhaLocalizacao() {
+            if (!navigator.geolocation) return;
+            navigator.geolocation.getCurrentPosition((position) => {
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                origem = [ultimaLat, ultimaLon];
+                map.setView(origem, 16);
+                obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                    ruaAtualNome = nomeRua;
+                    if (markerOrigem) map.removeLayer(markerOrigem);
+                    markerOrigem = L.marker(origem, { icon: criarIconeViatura() }).addTo(map).bindPopup(`<b>LOCALIZAÇÃO ATUAL</b><br>${ruaAtualNome}`).openPopup();
+                    instructionsDiv.innerHTML = `📍 <b>ORIGEM:</b> ${ruaAtualNome}`;
+                });
+            }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+        }
+
+        function avaliarRegistroPorDistanciaOuEndereco() {
+            if (ultimaLat === null || ultimaLon === null) return;
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (nomeRua) => {
+                ruaAtualNome = nomeRua;
+                if (!isGravando) return;
+                let deveSalvar = false;
+                if (!ultimaCoordenadaSalva) {
+                    deveSalvar = true;
+                } else {
+                    let distancia = calcularDistanciaMetros(ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1], ultimaLat, ultimaLon);
+                    if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
+                        deveSalvar = true;
+                    }
+                }
+                if (deveSalvar) {
+                    ultimaCoordenadaSalva = [ultimaLat, ultimaLon];
+                    ultimaRuaSalva = ruaAtualNome;
+                    let novoRegistro = { hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), rua: ruaAtualNome, coordenadas: [ultimaLat, ultimaLon] };
+                    registrosTrajeto.push(novoRegistro);
+                    atualizarPainelRelatorioDinamico(false, novoRegistro, null);
+                    emitirSomSalvamento();
+                    if (trackLayer) map.removeLayer(trackLayer);
+                    trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
+                    instructionsDiv.innerHTML = `📍 SALVO: <b>${ruaAtualNome}</b>`;
+                }
+            });
+        }
+
+        function iniciarRastreamentoGlobal() {
+            if (!navigator.geolocation) return;
+            watchId = navigator.geolocation.watchPosition((position) => {
+                ultimaLat = position.coords.latitude;
+                ultimaLon = position.coords.longitude;
+                let novaCoord = [ultimaLat, ultimaLon];
+                map.setView(novaCoord, map.getZoom());
+                if (markerOrigem) map.removeLayer(markerOrigem);
+                markerOrigem = L.marker(novaCoord, { icon: criarIconeViatura() }).addTo(map);
+                if (isGravando) avaliarRegistroPorDistanciaOuEndereco();
+            }, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 });
+        }
+
+        window.addEventListener('load', () => {
+            atualizarContadorGlobal();
+            centralizarNaMinhaLocalizacao();
+            iniciarRastreamentoGlobal();
+        });
+
+        btnAudio.addEventListener('click', async function() {
+            if (!isGravandoAudio) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                    mediaRecorder.onstop = () => {
+                        let audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        audiosGravados.push({ url: URL.createObjectURL(audioBlob), blob: audioBlob });
+                        atualizarPainelRelatorioDinamico(false);
+                        falarTexto("Áudio gravado.");
+                    };
+                    mediaRecorder.start();
+                    isGravandoAudio = true;
+                    btnAudio.classList.add('gravando-audio');
+                    btnAudio.textContent = "⏹️ PARAR ÁUDIO";
+                    instructionsDiv.innerHTML = "🎙️ GRAVANDO ÁUDIO...";
+                } catch (err) { alert("Erro no microfone."); }
+            } else {
+                if (mediaRecorder) { mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); }
+                isGravandoAudio = false;
+                btnAudio.classList.remove('gravando-audio');
+                btnAudio.textContent = "🎙️ ÁUDIO";
+                instructionsDiv.innerHTML = "✅ ÁUDIO SALVO!";
+            }
+        });
+
+        btnImportar.addEventListener('click', () => inputJson.click());
+        btnGerarRelatorioModal.addEventListener('click', () => { atualizarPainelRelatorioDinamico(false); textareaRelatorioModal.value = textoRelatorioPronto; modalGerarRelatorio.style.display = "flex"; });
+        btnModalRelatorioCancelar.addEventListener('click', () => modalGerarRelatorio.style.display = "none");
+
+        btnModalRelatorioSalvar.addEventListener('click', async function() {
+            textoRelatorioPronto = textareaRelatorioModal.value;
+            textoRelatorioVisivel.textContent = textoRelatorioPronto;
+            modalGerarRelatorio.style.display = "none";
+            salvarEstadoLocal();
+            
+            if (typeof window.sincronizarRelatorioFirebase === 'function') {
+                window.sincronizarRelatorioFirebase(textoRelatorioPronto);
+            }
+
+            let jsonString = JSON.stringify({ textoFormatado: textoRelatorioPronto, historico: registrosTrajeto }, null, 2);
+            let downloadAnchor = document.createElement('a');
+            downloadAnchor.href = "data:text/json;charset=utf-8," + encodeURIComponent(jsonString);
+            downloadAnchor.download = `relatorio_${localStorage.getItem('gps_rpm_viatura') || 'geral'}_${new Date().toISOString().slice(0,10)}.json`;
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        });
+
+        btnFecharPainel.addEventListener('click', () => { painelRelatorio.style.display = "none"; btnAbrirPainel.style.display = "block"; });
+        btnAbrirPainel.addEventListener('click', () => { if (textoRelatorioPronto.trim()) { painelRelatorio.style.display = "block"; btnAbrirPainel.style.display = "none"; } });
+
+        btnLimpar.addEventListener('click', function() {
+            if (confirm("Deseja limpar os dados desta viatura?")) {
+                if (isGravando) { clearInterval(tempoGravacaoInterval); liberarWakeLock(); }
+                localStorage.removeItem('gps_rpm_estado_atual');
+                isGravando = false; registrosTrajeto = []; pontosDeMelhoria = []; audiosGravados = [];
+                textoRelatorioPronto = ""; textoRelatorioVisivel.textContent = "";
+                painelRelatorio.style.display = "none"; btnAbrirPainel.style.display = "none";
+                btnGravar.textContent = "🔴 GRAVAR"; btnGravar.classList.remove('gravando');
+                if (trackLayer) map.removeLayer(trackLayer);
+                instructionsDiv.innerHTML = "🧹 LIMPO.";
+            }
+        });
+
+        btnWhatsapp.addEventListener('click', () => { if (textoRelatorioPronto) window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(textoRelatorioPronto)}`, '_blank'); });
+
+        function formatarTempo(segundos) {
+            const h = Math.floor(segundos / 3600);
+            const m = Math.floor((segundos % 3600) / 60);
+            const s = segundos % 60;
+            return (h > 0 ? String(h).padStart(2, '0') + ':' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        btnGravar.addEventListener('click', function() {
+            if (!isGravando) {
+                isGravando = true; segundosGravados = 0;
+                if (ultimaLat !== null) avaliarRegistroPorDistanciaOuEndereco();
+                btnGravar.classList.add('gravando');
+                solicitarWakeLock();
+                tempoGravacaoInterval = setInterval(() => { segundosGravados++; btnGravar.innerHTML = `⏹️ ${formatarTempo(segundosGravados)}`; }, 1000);
+                falarTexto("Gravação iniciada.");
+            } else {
+                isGravando = false; clearInterval(tempoGravacaoInterval); liberarWakeLock();
+                btnGravar.textContent = "🔴 GRAVAR"; btnGravar.classList.remove('gravando');
+                instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA!";
+                falarTexto("Encerrada.");
+            }
+        });
+
+        let coordsAtuaisPendentes = null;
+        let ruaAtualPendente = "";
+
+        btnMarcar.addEventListener('click', function() {
+            if (ultimaLat === null) { alert("Aguarde o GPS."); return; }
+            coordsAtuaisPendentes = [ultimaLat, ultimaLon];
+            obterNomeRuaPorCoord(ultimaLat, ultimaLon, (ruaEncontrada) => {
+                ruaAtualPendente = ruaEncontrada;
+                modalTituloLocal.textContent = `LOCAL: ${ruaEncontrada}`;
+                textareaOcorrencia.value = "";
+                modalMarcar.style.display = "flex";
+                textareaOcorrencia?.focus();
+            });
+        });
+
+        btnModalCancelar.addEventListener('click', () => modalMarcar.style.display = "none");
+
+        btnModalOk.addEventListener('click', function() {
+            let nota = textareaOcorrencia.value.trim();
+            if (nota) {
+                let novoPonto = { hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), rua: ruaAtualPendente, coordenadas: coordsAtuaisPendentes, comentario: nota.toUpperCase() };
+                pontosDeMelhoria.push(novoPonto);
+                atualizarPainelRelatorioDinamico(false, null, novoPonto);
+                let m = L.marker(coordsAtuaisPendentes).addTo(map).bindPopup(`<b>${ruaAtualPendente}</b><br>${nota.toUpperCase()}`).openPopup();
+                marcadoresMelhoriaLayers.push(m);
+                falarTexto("Marcado.");
+            }
+            modalMarcar.style.display = "none";
+        });
+
+        btnLocalizacao.addEventListener('click', centralizarNaMinhaLocalizacao);
+    </script>
+</body>
+</html>
