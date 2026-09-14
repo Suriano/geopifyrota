@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Controle de Câmeras Corporais Portáteis - Firebase</title>
+  <title>Controle de Câmeras Corporais Portáteis - Realtime Database</title>
   <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Ícones FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- Firebase App (Compat) & Firestore -->
+  <!-- Firebase App (Compat) & Realtime Database -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen p-4 md:p-8">
 
@@ -24,7 +24,7 @@
           <i class="fa-solid fa-video text-blue-400"></i>
           Controle de Câmeras Corporais Portáteis
         </h1>
-        <p class="text-slate-400 text-sm mt-1">Gerenciamento em tempo real via Firebase Firestore</p>
+        <p class="text-slate-400 text-sm mt-1">Gerenciamento em tempo real via Firebase Realtime Database</p>
       </div>
       <div class="flex items-center gap-4">
         <button onclick="abrirModalPoliciais()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 shadow-sm">
@@ -192,7 +192,7 @@
     };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const db = firebase.database(); // Inicializando Realtime Database
 
     function atualizarRelogio() {
       const agora = new Date();
@@ -219,12 +219,13 @@
     const inputUsuario = document.getElementById('usuario');
     const datalistPoliciais = document.getElementById('listaPoliciais');
 
-    // Carregar Policiais do Firestore em tempo real
-    db.collection('policiais').orderBy('usuario').onSnapshot((snapshot) => {
+    // Carregar Policiais do Realtime Database em tempo real
+    db.ref('policiais').on('value', (snapshot) => {
       policiaisCache = [];
-      snapshot.forEach((doc) => {
-        policiaisCache.push({ id: doc.id, ...doc.data() });
+      snapshot.forEach((childSnapshot) => {
+        policiaisCache.push({ id: childSnapshot.key, ...childSnapshot.val() });
       });
+      policiaisCache.sort((a, b) => a.usuario.localeCompare(b.usuario));
       renderizarTabelaPoliciais();
       atualizarDatalistRE();
     });
@@ -277,7 +278,7 @@
         return;
       }
 
-      await db.collection('policiais').add(novoPolicial);
+      await db.ref('policiais').push(novoPolicial);
 
       document.getElementById('novoGraduacao').value = '';
       document.getElementById('novoRe').value = '';
@@ -307,16 +308,18 @@
 
     window.excluirPolicial = async function(id) {
       if (confirm('Deseja excluir este policial da base?')) {
-        await db.collection('policiais').doc(id).delete();
+        await db.ref('policiais/' + id).remove();
       }
     };
 
-    // Carregar Cautelas do Firestore em tempo real
-    db.collection('cautelas').orderBy('dataRetirada', 'desc').onSnapshot((snapshot) => {
+    // Carregar Cautelas do Realtime Database em tempo real
+    db.ref('cautelas').on('value', (snapshot) => {
       cautelasCache = [];
-      snapshot.forEach((doc) => {
-        cautelasCache.push({ id: doc.id, ...doc.data() });
+      snapshot.forEach((childSnapshot) => {
+        cautelasCache.push({ id: childSnapshot.key, ...childSnapshot.val() });
       });
+      // Ordenar por dataRetirada decrescente
+      cautelasCache.sort((a, b) => new Date(b.dataRetirada) - new Date(a.dataRetirada));
       renderizarTabela();
     });
 
@@ -337,10 +340,10 @@
       tabelaCorpo.innerHTML = '';
 
       const filtrados = cautelasCache.filter(item => 
-        item.usuario.toLowerCase().includes(termo) ||
-        item.re.toLowerCase().includes(termo) ||
-        item.numCamera.toLowerCase().includes(termo) ||
-        item.graduacao.toLowerCase().includes(termo)
+        (item.usuario && item.usuario.toLowerCase().includes(termo)) ||
+        (item.re && item.re.toLowerCase().includes(termo)) ||
+        (item.numCamera && item.numCamera.toLowerCase().includes(termo)) ||
+        (item.graduacao && item.graduacao.toLowerCase().includes(termo))
       );
 
       if (filtrados.length === 0) {
@@ -360,12 +363,12 @@
 
         tr.innerHTML = `
           <td class="py-3 px-3">
-            <span class="font-semibold text-slate-800">${item.graduacao}</span>
-            <div class="text-xs text-slate-500">RE: ${item.re}</div>
+            <span class="font-semibold text-slate-800">${item.graduacao || ''}</span>
+            <div class="text-xs text-slate-500">RE: ${item.re || ''}</div>
           </td>
-          <td class="py-3 px-3 font-medium text-slate-800">${item.usuario}</td>
+          <td class="py-3 px-3 font-medium text-slate-800">${item.usuario || ''}</td>
           <td class="py-3 px-3">
-            <span class="bg-slate-200 text-slate-800 font-mono text-xs px-2.5 py-1 rounded-md font-semibold">${item.numCamera}</span>
+            <span class="bg-slate-200 text-slate-800 font-mono text-xs px-2.5 py-1 rounded-md font-semibold">${item.numCamera || ''}</span>
           </td>
           <td class="py-3 px-3">
             <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -415,7 +418,7 @@
         dataDevolucao: null
       };
 
-      await db.collection('cautelas').add(novoRegistro);
+      await db.ref('cautelas').push(novoRegistro);
 
       inputRe.value = '';
       inputGraduacao.value = '';
@@ -425,7 +428,7 @@
     });
 
     window.registrarDevolucao = async function(id) {
-      await db.collection('cautelas').doc(id).update({
+      await db.ref('cautelas/' + id).update({
         status: 'DEVOLVIDO',
         dataDevolucao: new Date().toISOString()
       });
@@ -433,7 +436,7 @@
 
     window.excluirRegistro = async function(id) {
       if (confirm('Deseja realmente excluir este registro?')) {
-        await db.collection('cautelas').doc(id).delete();
+        await db.ref('cautelas/' + id).remove();
       }
     };
 
