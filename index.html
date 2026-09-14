@@ -793,7 +793,6 @@
                 }
                 textoRelatorioPronto = relatorioFormal;
             } else {
-                // Apenas append incremental para evitar reordenar/bagunçar o que já está na tela
                 if (novoPonto) {
                     if (textoRelatorioPronto.includes("1. NENHUM REGISTRO INFORMADO AINDA.")) {
                         textoRelatorioPronto = textoRelatorioPronto.replace("1. NENHUM REGISTRO INFORMADO AINDA.\n", "");
@@ -802,7 +801,6 @@
                     const linhaTrajeto = `${contadorItem}. ÀS ${novoPonto.hora} - LOCAL: ${novoPonto.rua.toUpperCase()}.\n`;
                     
                     if (textoRelatorioPronto.includes("ALTERAÇÕES / PONTOS MARCADOS:")) {
-                        // Inserir antes da seção de pontos marcados
                         const partes = textoRelatorioPronto.split("ALTERAÇÕES / PONTOS MARCADOS:");
                         textoRelatorioPronto = partes[0] + linhaTrajeto + "\nALTERAÇÕES / PONTOS MARCADOS:" + partes[1];
                     } else {
@@ -822,7 +820,6 @@
             textoRelatorioVisivel.textContent = textoRelatorioPronto;
             painelRelatorio.style.display = "block";
 
-            // Renderizar lista de áudios no painel se houver
             if (audiosGravados.length > 0) {
                 containerAudiosSalvos.style.display = "block";
                 listaAudiosElementos.innerHTML = "";
@@ -949,8 +946,9 @@
                                     inputDestino.value = props.formatted;
                                     sugestoesDestino.style.display = 'none';
                                     
-                                    const destLat = feature.geometry.coordinates;
+                                    // CORREÇÃO: GeoJSON usa [longitude, latitude]. A API espera lat, lon separadas por vírgula.
                                     const destLon = feature.geometry.coordinates[0];
+                                    const destLat = feature.geometry.coordinates[1];
 
                                     calcularESobrescreverRota(destLat, destLon, props.formatted);
                                 });
@@ -1024,7 +1022,7 @@
                     deveSalvar = true;
                 } else {
                     const distancia = calcularDistanciaMetros(
-                        ultimaCoordenadaSalva[0], ultimaCoordenadaSalva,
+                        ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1],
                         ultimaLat, ultimaLon
                     );
 
@@ -1173,7 +1171,6 @@
             inputJson.click();
         });
 
-        // Ação do Botão "EDITAR / GERAR" no painel inferior
         btnGerarRelatorioModal.addEventListener('click', function() {
             atualizarPainelRelatorioDinamico(false);
             textareaRelatorioModal.value = textoRelatorioPronto;
@@ -1184,7 +1181,6 @@
             modalGerarRelatorio.style.display = "none";
         });
 
-        // Salvar/Baixar do Modal de Relatório
         btnModalRelatorioSalvar.addEventListener('click', async function() {
             const novoTexto = textareaRelatorioModal.value;
             textoRelatorioPronto = novoTexto;
@@ -1368,7 +1364,6 @@
                 instructionsDiv.innerHTML = "✅ GRAVAÇÃO ENCERRADA!";
                 falarTexto("Gravação encerrada.");
 
-                // Atualiza o tempo total exibido no cabeçalho do relatório sem destruir o histórico anterior
                 if (textoRelatorioPronto.includes("DATA:")) {
                     textoRelatorioPronto = textoRelatorioPronto.replace(/TEMPO: [^\n]*/, `TEMPO: CONCLUÍDO`);
                     textoRelatorioVisivel.textContent = textoRelatorioPronto;
