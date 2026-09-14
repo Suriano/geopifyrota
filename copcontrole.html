@@ -12,6 +12,10 @@
   <!-- Firebase App (Compat) & Realtime Database -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+  <!-- jsPDF e jsPDF AutoTable para geração de PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body class="bg-slate-100 min-h-screen p-4 md:p-8">
 
@@ -89,10 +93,15 @@
       <!-- Tabela de Registros -->
       <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-md border border-slate-200 flex flex-col">
         <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-2 border-b">
-          <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-list-check text-blue-600"></i>
-            Histórico e Cautelas Ativas
-          </h2>
+          <div class="flex items-center justify-between w-full xl:w-auto gap-4">
+            <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-list-check text-blue-600"></i>
+              Histórico e Cautelas Ativas
+            </h2>
+            <button onclick="gerarRelatorioPDF()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-file-pdf"></i> Gerar PDF
+            </button>
+          </div>
           
           <!-- Filtros de Pesquisa e Data -->
           <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
@@ -279,6 +288,7 @@
     let policiaisCache = [];
     let camerasCache = [];
     let cautelasCache = [];
+    let registrosFiltradosCache = [];
 
     const formCamera = document.getElementById('formCamera');
     const tabelaCorpo = document.getElementById('tabelaCorpo');
@@ -553,7 +563,7 @@
 
       tabelaCorpo.innerHTML = '';
 
-      const filtrados = cautelasCache.filter(item => {
+      registrosFiltradosCache = cautelasCache.filter(item => {
         const matchTexto = 
           (item.usuario && item.usuario.toLowerCase().includes(termo)) ||
           (item.re && item.re.toLowerCase().includes(termo)) ||
@@ -572,7 +582,7 @@
         return true;
       });
 
-      if (filtrados.length === 0) {
+      if (registrosFiltradosCache.length === 0) {
         tabelaCorpo.innerHTML = `
           <tr>
             <td colspan="7" class="py-8 text-center text-slate-400">Nenhum registro encontrado para este filtro.</td>
@@ -582,7 +592,7 @@
         return;
       }
 
-      filtrados.forEach((item) => {
+      registrosFiltradosCache.forEach((item) => {
         const isDevolvido = item.status === 'DEVOLVIDO';
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50 transition';
@@ -623,13 +633,72 @@
         tabelaCorpo.appendChild(tr);
       });
 
-      document.getElementById('contadorRegistros').textContent = `Total de registros: ${filtrados.length} de ${cautelasCache.length}`;
+      document.getElementById('contadorRegistros').textContent = `Total de registros: ${registrosFiltradosCache.length} de ${cautelasCache.length}`;
     }
 
     window.limparFiltroData = function() {
       inputDataInicio.value = '';
       inputDataFim.value = '';
       renderizarTabela();
+    };
+
+    // Função para gerar relatório em PDF
+    window.gerarRelatorioPDF = function() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Cabeçalho do PDF
+      doc.setFontSize(16);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text('Relatório de Controle de Câmeras Corporais Portáteis', 14, 18);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 116, 139); // slate-500
+      const dataGeracao = new Date().toLocaleString('pt-BR');
+      doc.text(`Gerado em: ${dataGeracao}`, 14, 24);
+
+      const dInicio = inputDataInicio.value ? inputDataInicio.value.split('-').reverse().join('/') : 'Início';
+      const dFim = inputDataFim.value ? inputDataFim.value.split('-').reverse().join('/') : 'Atual';
+      doc.text(`Período do Relatório: ${dInicio} até ${dFim}`, 14, 29);
+
+      // Linhas da tabela
+      const linhas = registrosFiltradosCache.map(item => [
+        `${item.graduacao || ''} (RE: ${item.re || ''})`,
+        item.usuario || '',
+        item.numCamera || '',
+        item.status || '',
+        formatarDataIsoParaPtBr(item.dataRetirada),
+        formatarDataIsoParaPtBr(item.dataDevolucao)
+      ]);
+
+      doc.autoTable({
+        startY: 34,
+        head: [['Graduação / RE', 'Policial / Usuário', 'Nº Câmera', 'Status', 'Data / Hora Retirada', 'Data / Hora Devolução']],
+        body: linhas,
+        theme: 'grid',
+        headStyles: {
+          fillColor: [15, 23, 42],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold'
+        },
+        bodyStyles: {
+          fontSize: 8,
+          textColor: [30, 41, 59]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        margin: { top: 34, right: 14, bottom: 14, left: 14 }
+      });
+
+      // Salvar PDF
+      const nomeArquivo = `relatorio-cameras-${new Date().toISOString().slice(0, 10)}.pdf`;
+      doc.save(nomeArquivo);
     };
 
     formCamera.addEventListener('submit', async (e) => {
