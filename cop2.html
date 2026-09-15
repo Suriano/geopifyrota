@@ -956,20 +956,25 @@
                 <p class="text-slate-400 text-[11px] pt-1 border-t border-amber-100">Retirada: ${formatarDataIsoParaPtBr(cautelaAtiva.dataRetirada)}</p>
               </div>
             ` : `
-              <div class="py-4 text-center text-xs text-slate-400 italic">
-                Pronta para retirada
+              <div class="relative mb-3">
+                <input type="text" id="reInputCard_${cam.numCamera}" placeholder="Digite o RE ou Nome para retirar..." autocomplete="off" class="w-full px-2.5 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white" oninput="filtrarPoliciaisCard('${cam.numCamera}')">
+                <div id="dropdownCard_${cam.numCamera}" class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-40 overflow-y-auto z-50"></div>
+                <input type="hidden" id="reSelecionadoCard_${cam.numCamera}">
               </div>
             `}
           </div>
 
           <div>
             ${emUso ? `
-              <button onclick="registrarDevolucao('${cautelaAtiva.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
-                <i class="fa-solid fa-rotate-left"></i> Realizar Baixa (Devolver)
-              </button>
+              <div class="space-y-1.5">
+                <input type="text" id="reDevolucaoCard_${cautelaAtiva.id}" placeholder="Digite o RE p/ confirmar baixa..." autocomplete="off" class="w-full px-2.5 py-1 text-xs border border-amber-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white">
+                <button onclick="registrarDevolucaoPorRe('${cautelaAtiva.id}', '${cautelaAtiva.re}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                  <i class="fa-solid fa-rotate-left"></i> Realizar Baixa (Devolver)
+                </button>
+              </div>
             ` : `
-              <button disabled class="w-full bg-slate-100 text-slate-400 text-xs font-medium py-2 rounded-lg cursor-not-allowed">
-                Aguardando Retirada
+              <button onclick="retirarCameraPeloCard('${cam.numCamera}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-check"></i> Efetuar Retirada
               </button>
             `}
           </div>
@@ -978,6 +983,109 @@
         container.appendChild(card);
       });
     }
+
+    // Autocomplete e seleção de policial direto no card de retirada
+    window.filtrarPoliciaisCard = function(numCamera) {
+      const input = document.getElementById(`reInputCard_${numCamera}`);
+      const dropdown = document.getElementById(`dropdownCard_${numCamera}`);
+      const hiddenRe = document.getElementById(`reSelecionadoCard_${numCamera}`);
+      const termo = input.value.trim().toLowerCase();
+
+      hiddenRe.value = '';
+
+      if (termo.length > 0) {
+        const filtrados = policiaisCache.filter(p => 
+          p.re.toLowerCase().includes(termo) || 
+          p.usuario.toLowerCase().includes(termo) ||
+          p.graduacao.toLowerCase().includes(termo)
+        );
+
+        if (filtrados.length > 0) {
+          dropdown.innerHTML = '';
+          filtrados.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'px-3 py-1.5 hover:bg-emerald-50 cursor-pointer text-xs border-b border-slate-100 last:border-none flex justify-between items-center';
+            item.innerHTML = `
+              <div>
+                <span class="font-bold text-slate-800">${p.re}</span>
+                <span class="text-slate-600 ml-1">${p.graduacao} ${p.usuario}</span>
+              </div>
+            `;
+            item.onclick = () => {
+              input.value = `${p.graduacao} ${p.usuario} (RE: ${p.re})`;
+              hiddenRe.value = p.re;
+              dropdown.classList.add('hidden');
+            };
+            dropdown.appendChild(item);
+          });
+          dropdown.classList.remove('hidden');
+        } else {
+          dropdown.classList.add('hidden');
+        }
+      } else {
+        dropdown.classList.add('hidden');
+      }
+    };
+
+    // Efetuar Retirada direto pelo Card da Grade
+    window.retirarCameraPeloCard = async function(numCamera) {
+      const hiddenRe = document.getElementById(`reSelecionadoCard_${numCamera}`);
+      const input = document.getElementById(`reInputCard_${numCamera}`);
+      let reDigitado = hiddenRe.value;
+
+      if (!reDigitado) {
+        const termo = input.value.trim();
+        const policialEncontrado = policiaisCache.find(p => 
+          p.re.toLowerCase() === termo.toLowerCase() ||
+          p.usuario.toLowerCase() === termo.toLowerCase()
+        );
+        if (policialEncontrado) {
+          reDigitado = policialEncontrado.re;
+        }
+      }
+
+      const policial = policiaisCache.find(p => p.re.toLowerCase() === (reDigitado || '').toLowerCase());
+      if (!policial) {
+        alert('Selecione ou digite um RE / Policial válido da base para realizar a retirada.');
+        return;
+      }
+
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+
+      const novoRegistro = {
+        graduacao: policial.graduacao,
+        re: policial.re,
+        usuario: policial.usuario,
+        numCamera: numCamera,
+        status: 'EM USO',
+        dataRetirada: now.toISOString().slice(0, 16),
+        dataDevolucao: null
+      };
+
+      await db.ref('cautelas').push(novoRegistro);
+    };
+
+    // Realizar Baixa (Devolver) digitando ou confirmando o RE do policial
+    window.registrarDevolucaoPorRe = async function(cautelaId, reEsperado) {
+      const inputReDev = document.getElementById(`reDevolucaoCard_${cautelaId}`);
+      const digitado = (inputReDev.value || '').trim().toLowerCase();
+      const esperado = (reEsperado || '').trim().toLowerCase();
+
+      // Remove formatações de hífen se houver para comparar flexível
+      const limpoDigitado = digitado.replace(/[^a-z0-9]/g, '');
+      const limpoEsperado = esperado.replace(/[^a-z0-9]/g, '');
+
+      if (limpoDigitado !== limpoEsperado) {
+        alert(`O RE digitado não confere com o policial cautelado (${reEsperado}). Confirme o RE correto para realizar a baixa.`);
+        return;
+      }
+
+      await db.ref('cautelas/' + cautelaId).update({
+        status: 'DEVOLVIDO',
+        dataDevolucao: new Date().toISOString()
+      });
+    };
 
     filtroGradeBusca.addEventListener('input', renderizarGradeCameras);
 
