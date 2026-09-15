@@ -966,12 +966,9 @@
 
           <div>
             ${emUso ? `
-              <div class="space-y-1.5">
-                <input type="text" id="reDevolucaoCard_${cautelaAtiva.id}" placeholder="Digite o RE p/ confirmar baixa..." autocomplete="off" class="w-full px-2.5 py-1 text-xs border border-amber-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white">
-                <button onclick="registrarDevolucaoPorRe('${cautelaAtiva.id}', '${cautelaAtiva.re}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
-                  <i class="fa-solid fa-rotate-left"></i> Realizar Baixa (Devolver)
-                </button>
-              </div>
+              <button onclick="registrarDevolucao('${cautelaAtiva.id}')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                <i class="fa-solid fa-rotate-left"></i> Realizar Baixa (Devolver)
+              </button>
             ` : `
               <button onclick="retirarCameraPeloCard('${cam.numCamera}')" class="w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2 rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 cursor-pointer">
                 <i class="fa-solid fa-check"></i> Efetuar Retirada
@@ -1064,27 +1061,6 @@
       };
 
       await db.ref('cautelas').push(novoRegistro);
-    };
-
-    // Realizar Baixa (Devolver) digitando ou confirmando o RE do policial
-    window.registrarDevolucaoPorRe = async function(cautelaId, reEsperado) {
-      const inputReDev = document.getElementById(`reDevolucaoCard_${cautelaId}`);
-      const digitado = (inputReDev.value || '').trim().toLowerCase();
-      const esperado = (reEsperado || '').trim().toLowerCase();
-
-      // Remove formatações de hífen se houver para comparar flexível
-      const limpoDigitado = digitado.replace(/[^a-z0-9]/g, '');
-      const limpoEsperado = esperado.replace(/[^a-z0-9]/g, '');
-
-      if (limpoDigitado !== limpoEsperado) {
-        alert(`O RE digitado não confere com o policial cautelado (${reEsperado}). Confirme o RE correto para realizar a baixa.`);
-        return;
-      }
-
-      await db.ref('cautelas/' + cautelaId).update({
-        status: 'DEVOLVIDO',
-        dataDevolucao: new Date().toISOString()
-      });
     };
 
     filtroGradeBusca.addEventListener('input', renderizarGradeCameras);
