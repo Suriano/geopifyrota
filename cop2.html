@@ -131,7 +131,7 @@
         <i class="fa-solid fa-clipboard-user"></i> Registrar Retirada & Histórico
       </button>
       <button onclick="mudarAba('grade')" id="tabGrade" class="pb-3 px-4 font-semibold text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-800 flex items-center gap-2 cursor-pointer transition">
-        <i class="fa-solid fa-th-large"></i> Grade Geral de Câmeras (Baixa Rápida)
+        <i class="fa-solid fa-th-large"></i> Câmeras (Baixa Rápida)
       </button>
     </div>
 
@@ -242,7 +242,7 @@
     <!-- SEÇÃO 2: GRADE DE CÂMERAS (VISÃO GERAL E BAIXA RÁPIDA) -->
     <div id="secaoGrade" class="hidden space-y-4">
       <div class="bg-white p-6 rounded-xl shadow-md border border-slate-200">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-3 border-b">
+        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 pb-3 border-b">
           <div>
             <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
               <i class="fa-solid fa-th-large text-indigo-600"></i>
@@ -250,13 +250,19 @@
             </h2>
             <p class="text-xs text-slate-500 mt-0.5">Visualize quais câmeras estão disponíveis ou cauteladas com os policiais e realize a devolução imediata.</p>
           </div>
-          <div class="flex items-center gap-3">
-            <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200">
-              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Disponível
-            </span>
-            <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200">
-              <span class="w-2 h-2 rounded-full bg-amber-500"></span> Em Uso
-            </span>
+          
+          <!-- Filtros e Busca da Grade -->
+          <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+            <div class="flex items-center bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <button onclick="mudarFiltroGrade('todas')" id="btnFiltroTodas" class="px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-xs transition cursor-pointer">Todas</button>
+              <button onclick="mudarFiltroGrade('disponivel')" id="btnFiltroDisponivel" class="px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-slate-800 transition cursor-pointer">Disponíveis</button>
+              <button onclick="mudarFiltroGrade('em_uso')" id="btnFiltroEmUso" class="px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-slate-800 transition cursor-pointer">Em Uso</button>
+            </div>
+
+            <div class="relative flex-1 sm:w-48">
+              <input type="text" id="filtroGradeBusca" placeholder="Filtrar câmera..." class="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+              <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2 text-slate-400 text-xs"></i>
+            </div>
           </div>
         </div>
 
@@ -543,6 +549,7 @@
     let policiaisCache = [];
     let camerasCache = [];
     let cautelasCache = [];
+    let filtroGradeAtual = 'todas';
 
     const formCamera = document.getElementById('formCamera');
     const tabelaCorpo = document.getElementById('tabelaCorpo');
@@ -558,6 +565,7 @@
     const inputNumCamera = document.getElementById('numCamera');
     const dropdownCamera = document.getElementById('dropdownCamera');
     const filtroPoliciais = document.getElementById('filtroPoliciais');
+    const filtroGradeBusca = document.getElementById('filtroGradeBusca');
 
     // Carregar Policiais do Realtime Database em tempo real
     db.ref('policiais').on('value', (snapshot) => {
@@ -848,6 +856,30 @@
       }
     });
 
+    // Funções de Filtro da Grade
+    window.mudarFiltroGrade = function(tipo) {
+      filtroGradeAtual = tipo;
+      
+      const btnTodas = document.getElementById('btnFiltroTodas');
+      const btnDisponivel = document.getElementById('btnFiltroDisponivel');
+      const btnEmUso = document.getElementById('btnFiltroEmUso');
+
+      // Resetar estilos
+      [btnTodas, btnDisponivel, btnEmUso].forEach(btn => {
+        btn.className = "px-3 py-1.5 text-xs font-semibold rounded-md text-slate-600 hover:text-slate-800 transition cursor-pointer";
+      });
+
+      if (tipo === 'todas') {
+        btnTodas.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-xs transition cursor-pointer";
+      } else if (tipo === 'disponivel') {
+        btnDisponivel.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-xs transition cursor-pointer";
+      } else if (tipo === 'em_uso') {
+        btnEmUso.className = "px-3 py-1.5 text-xs font-semibold rounded-md bg-white text-slate-800 shadow-xs transition cursor-pointer";
+      }
+
+      renderizarGradeCameras();
+    };
+
     // Renderizar Grade de Câmeras (Visão Geral & Baixa Rápida)
     function renderizarGradeCameras() {
       const container = document.getElementById('gradeCamerasContainer');
@@ -858,8 +890,39 @@
         return;
       }
 
-      camerasCache.forEach(cam => {
-        // Verificar se a câmera está em uso ativo
+      const termoBusca = (filtroGradeBusca.value || '').toLowerCase().trim();
+
+      const camerasFiltradas = camerasCache.filter(cam => {
+        const cautelaAtiva = cautelasCache.find(c => 
+          c.numCamera.toLowerCase() === cam.numCamera.toLowerCase() && c.status !== 'DEVOLVIDO'
+        );
+        const emUso = !!cautelaAtiva;
+
+        // Filtro por status (Todas, Disponível, Em Uso)
+        if (filtroGradeAtual === 'disponivel' && emUso) return false;
+        if (filtroGradeAtual === 'em_uso' && !emUso) return false;
+
+        // Filtro por busca de texto
+        if (termoBusca) {
+          const matchNum = cam.numCamera.toLowerCase().includes(termoBusca);
+          const matchObs = cam.obs && cam.obs.toLowerCase().includes(termoBusca);
+          const matchPolicial = cautelaAtiva && (
+            cautelaAtiva.usuario.toLowerCase().includes(termoBusca) ||
+            cautelaAtiva.re.toLowerCase().includes(termoBusca) ||
+            cautelaAtiva.graduacao.toLowerCase().includes(termoBusca)
+          );
+          if (!matchNum && !matchObs && !matchPolicial) return false;
+        }
+
+        return true;
+      });
+
+      if (camerasFiltradas.length === 0) {
+        container.innerHTML = `<div class="col-span-full py-8 text-center text-slate-400">Nenhuma câmera encontrada para este filtro.</div>`;
+        return;
+      }
+
+      camerasFiltradas.forEach(cam => {
         const cautelaAtiva = cautelasCache.find(c => 
           c.numCamera.toLowerCase() === cam.numCamera.toLowerCase() && c.status !== 'DEVOLVIDO'
         );
@@ -915,6 +978,8 @@
         container.appendChild(card);
       });
     }
+
+    filtroGradeBusca.addEventListener('input', renderizarGradeCameras);
 
     function formatarDataIsoParaPtBr(dataIso) {
       if (!dataIso) return '-';
