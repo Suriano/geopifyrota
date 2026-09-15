@@ -360,6 +360,12 @@
                 lblViaturaAtiva.textContent = viaturaAtual;
                 loginScreen.style.display = 'none';
                 appContainer.style.display = 'flex';
+                
+                // Restaura o histórico salvo localmente ao logar/recarregar
+                if (typeof window.carregarEstadoLocal === 'function') {
+                    window.carregarEstadoLocal();
+                }
+
                 iniciarListenersFirebase(viaturaAtual);
                 setTimeout(() => { if (typeof map !== 'undefined') map.invalidateSize(); }, 300);
             } else {
@@ -629,6 +635,45 @@
             localStorage.setItem('gps_rpm_estado_atual', JSON.stringify(estado));
         }
 
+        window.carregarEstadoLocal = function() {
+            const estadoSalvo = localStorage.getItem('gps_rpm_estado_atual');
+            if (estadoSalvo) {
+                try {
+                    const estado = JSON.parse(estadoSalvo);
+                    registrosTrajeto = estado.registrosTrajeto || [];
+                    pontosDeMelhoria = estado.pontosDeMelhoria || [];
+                    textoRelatorioPronto = estado.textoRelatorioPronto || "";
+                    
+                    if (textoRelatorioPronto.trim() !== "") {
+                        textoRelatorioVisivel.textContent = textoRelatorioPronto;
+                        if (estado.temRelatorioVisivel) {
+                            painelRelatorio.style.display = "block";
+                            btnAbrirPainel.style.display = "none";
+                        } else {
+                            painelRelatorio.style.display = "none";
+                            btnAbrirPainel.style.display = "block";
+                        }
+                    }
+
+                    // Desenhar a linha do trajeto no mapa se houver registros
+                    if (registrosTrajeto.length > 0) {
+                        if (trackLayer) map.removeLayer(trackLayer);
+                        trackLayer = L.polyline(registrosTrajeto.map(i => i.coordenadas), { color: '#c0392b', weight: 5 }).addTo(map);
+                    }
+
+                    // Desenhar marcadores de pontos de melhoria salvos no mapa
+                    if (pontosDeMelhoria.length > 0) {
+                        pontosDeMelhoria.forEach(pm => {
+                            let m = L.marker(pm.coordenadas).addTo(map).bindPopup(`<b>${pm.rua}</b><br>${pm.comentario}`);
+                            marcadoresMelhoriaLayers.push(m);
+                        });
+                    }
+                } catch (e) {
+                    console.error("Erro ao carregar estado local:", e);
+                }
+            }
+        };
+
         function atualizarPainelRelatorioDinamico(forcarGeracao = false, novoPonto = null, novoPontoMelhoria = null) {
             if (forcarGeracao || !textoRelatorioPronto || textoRelatorioPronto.trim() === "") {
                 let relatorioFormal = `RELATÓRIO DE SERVIÇO OPERACIONAL - VIATURA: ${localStorage.getItem('gps_rpm_viatura') || 'GERAL'}\n`;
@@ -754,7 +799,7 @@
                                 div.addEventListener('click', () => {
                                     inputDestino.value = feature.properties.formatted;
                                     sugestoesDestino.style.display = 'none';
-                                    calcularESobrescreverRota(feature.geometry.coordinates, feature.geometry.coordinates[0], feature.properties.formatted);
+                                    calcularESobrescreverRota(feature.geometry.coordinates[1], feature.geometry.coordinates[0], feature.properties.formatted);
                                 });
                                 sugestoesDestino.appendChild(div);
                             });
@@ -801,7 +846,7 @@
                 if (!ultimaCoordenadaSalva) {
                     deveSalvar = true;
                 } else {
-                    let distancia = calcularDistanciaMetros(ultimaCoordenadaSalva[0], ultimaCoordenadaSalva, ultimaLat, ultimaLon);
+                    let distancia = calcularDistanciaMetros(ultimaCoordenadaSalva[0], ultimaCoordenadaSalva[1], ultimaLat, ultimaLon);
                     if (distancia >= distanciaMinimaMetros && ruaAtualNome !== ultimaRuaSalva && ruaAtualNome !== "VIA NÃO IDENTIFICADA") {
                         deveSalvar = true;
                     }
